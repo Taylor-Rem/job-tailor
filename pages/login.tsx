@@ -1,10 +1,15 @@
+// pages/login.tsx
 import { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useRouter } from 'next/router';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
+  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,8 +24,9 @@ export default function Login() {
       });
       const data = await response.json();
       if (response.ok) {
+        login(data.user_id); // Set user_id in context
         setMessage(`Logged in! Welcome, user ${data.user_id}`);
-        // Store user_id in localStorage later
+        router.push('/'); // Redirect to home
       } else {
         setMessage(`Error: ${data.error}`);
       }
@@ -32,15 +38,15 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <form onSubmit={handleLogin} className="p-6 bg-white rounded shadow-md">
-        <h1 className="text-2xl mb-4">Log In</h1>
+    <div className="full-height" style={{ paddingTop: '80px' }}>
+      <form onSubmit={handleLogin} className="card form">
+        <h1 className="title">Log In</h1>
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Email"
-          className="mb-4 w-full p-2 border rounded"
+          className="input"
           required
         />
         <input
@@ -48,17 +54,13 @@ export default function Login() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
-          className="mb-4 w-full p-2 border rounded"
+          className="input"
           required
         />
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
+        <button type="submit" disabled={loading} className="button">
           {loading ? 'Logging In...' : 'Log In'}
         </button>
-        {message && <p className="mt-4 text-center">{message}</p>}
+        {message && <p className="message">{message}</p>}
       </form>
     </div>
   );
