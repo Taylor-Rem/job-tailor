@@ -1,6 +1,6 @@
-// pages/api/users/create.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { Pool } from 'pg';
+import bcrypt from 'bcrypt';
 
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -17,15 +17,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!email || !password) return res.status(400).json({ error: 'email and password required' });
 
   try {
+    // Hash the password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
     const client = await pool.connect();
     const result = await client.query(
       'INSERT INTO users (email, password, plan) VALUES ($1, $2, $3) RETURNING user_id',
-      [email, password, plan] // Note: Password should be hashed in production
+      [email, hashedPassword, plan] // Store hashed password
     );
     client.release();
     res.status(200).json({ user_id: result.rows[0].user_id });
   } catch (err) {
-    // Type err as Error
     res.status(500).json({ error: (err as Error).message });
   }
 }
