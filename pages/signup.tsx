@@ -11,7 +11,6 @@ export default function Signup() {
     e.preventDefault();
     setLoading(true);
     setMessage('');
-
     try {
       const response = await fetch('/api/users/create', {
         method: 'POST',
@@ -32,15 +31,15 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <form onSubmit={handleSignup} className="p-6 bg-white rounded shadow-md">
-        <h1 className="">Sign Up</h1>
+    <div className="full-height" style={{ paddingTop: '80px' }}>
+      <form onSubmit={handleSignup} className="card form">
+        <h1 className="title">Sign Up</h1>
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Email"
-          className="mb-4 w-full p-2 border rounded"
+          className="input"
           required
         />
         <input
@@ -48,25 +47,21 @@ export default function Signup() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
-          className="mb-4 w-full p-2 border rounded"
+          className="input"
           required
         />
         <select
           value={plan}
           onChange={(e) => setPlan(Number(e.target.value))}
-          className="mb-4 w-full p-2 border rounded"
+          className="select"
         >
-          <option value="basic">Basic</option>
-          <option value="premium">Premium</option>
+          <option value={0}>Basic</option>
+          <option value={1}>Premium</option>
         </select>
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
+        <button type="submit" disabled={loading} className="button">
           {loading ? 'Signing Up...' : 'Sign Up'}
         </button>
-        {message && <p className="mt-4 text-center">{message}</p>}
+        {message && <p className="message">{message}</p>}
       </form>
     </div>
   );

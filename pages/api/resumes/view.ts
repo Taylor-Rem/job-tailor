@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Pool } from 'pg';
 
 const s3 = new S3Client({
@@ -21,32 +22,32 @@ const pool = new Pool({
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { user_id, resume } = req.body;
-  if (!user_id || !resume) return res.status(400).json({ error: 'user_id and resume required' });
-
-  const buffer = Buffer.from(resume, 'base64');
-  const s3Key = `resumes/${user_id}/original.pdf`;
+  const { user_id } = req.body;
+  if (!user_id) return res.status(400).json({ error: 'user_id required' });
 
   try {
-    // Upload to S3
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: process.env.S3_BUCKET,
-        Key: s3Key,
-        Body: buffer,
-        ContentType: 'application/pdf',
-      })
-    );
-
-    // Store metadata in RDS
     const client = await pool.connect();
     const result = await client.query(
-      'INSERT INTO user_resumes (user_id, s3_key) VALUES ($1, $2) RETURNING resume_id',
-      [user_id, s3Key]
+      'SELECT s3_key FROM user_resumes WHERE user_id = $1 ORDER BY resume_id DESC LIMIT 1',
+      [user_id]
     );
     client.release();
 
-    res.status(200).json({ resume_id: result.rows[0].resume_id });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No resume found' });
+    }
+
+    const s3Key = result.rows[0].s3_key;
+    const url = await getSignedUrl(
+      s3,
+      new GetObjectCommand({
+        Bucket: process.env.S3_BUCKET,
+        Key: s3Key,
+      }),
+      { expiresIn: 3600 } // URL valid for 1 hour
+    );
+
+    res.status(200).json({ url });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -1,26 +1,37 @@
 import { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Upload() {
   const [file, setFile] = useState<File | null>(null);
-  const [userId] = useState(1); // Hardcode for now, replace with auth later
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const { userId } = useAuth();
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setFile(e.target.files[0]);
+    }
+  };
+
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) return setMessage('Please select a file');
+    if (!file) {
+      setMessage('Please select a file');
+      return;
+    }
 
     setLoading(true);
     setMessage('');
 
     const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = (reader.result as string).split(',')[1]; // Remove data URL prefix
+    reader.onload = async () => {
+      const base64String = (reader.result as string).split(',')[1]; // Remove prefix
       try {
         const response = await fetch('/api/resumes/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: userId, resume: base64 }),
+          body: JSON.stringify({ user_id: userId, resume: base64String }),
         });
         const data = await response.json();
         if (response.ok) {
@@ -38,23 +49,19 @@ export default function Upload() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <form onSubmit={handleUpload} className="p-6 bg-white rounded shadow-md">
-        <h1 className="text-2xl mb-4">Upload Resume</h1>
+    <div className="full-height" style={{ paddingTop: '80px' }}>
+      <form onSubmit={handleUpload} className="card form">
+        <h1 className="title">Upload Resume</h1>
         <input
           type="file"
           accept=".pdf"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
-          className="mb-4 w-full"
+          onChange={handleFileChange}
+          className="file-input"
         />
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
+        <button type="submit" disabled={loading} className="button">
           {loading ? 'Uploading...' : 'Upload'}
         </button>
-        {message && <p className="mt-4 text-center">{message}</p>}
+        {message && <p className="message">{message}</p>}
       </form>
     </div>
   );
