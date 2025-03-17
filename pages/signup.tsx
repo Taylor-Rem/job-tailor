@@ -11,6 +11,7 @@ export default function Signup() {
     e.preventDefault();
     setLoading(true);
     setMessage('');
+
     try {
       const response = await fetch('/api/users/create', {
         method: 'POST',
@@ -24,7 +25,7 @@ export default function Signup() {
         setMessage(`Error: ${data.error}`);
       }
     } catch (err) {
-      setMessage('Network error');
+      setMessage(`Network error: ${(err as Error).message}`); // Use err here
     } finally {
       setLoading(false);
     }
