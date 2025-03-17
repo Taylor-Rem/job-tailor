@@ -1,4 +1,3 @@
-// pages/login.tsx
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
@@ -24,14 +23,14 @@ export default function Login() {
       });
       const data = await response.json();
       if (response.ok) {
-        login(data.user_id); // Set user_id in context
+        login(data.user_id);
         setMessage(`Logged in! Welcome, user ${data.user_id}`);
-        router.push('/'); // Redirect to home
+        router.push('/');
       } else {
         setMessage(`Error: ${data.error}`);
       }
     } catch (err) {
-      setMessage('Network error');
+      setMessage(`Network error: ${(err as Error).message}`); // Use err here
     } finally {
       setLoading(false);
     }
