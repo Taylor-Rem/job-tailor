@@ -29,6 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.status(200).json({ user_id: user.user_id });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+    res.status(500).json({ error: errorMessage });
   }
 }

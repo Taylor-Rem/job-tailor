@@ -38,7 +38,7 @@ export default function Account() {
           if (resumeRes.ok) setResumeUrl(resumeData.url);
           else if (resumeRes.status !== 404) throw new Error(resumeData.error);
         } catch (err) {
-          setError(err.message || 'Failed to load account data');
+          setError(err instanceof Error ? err.message : 'Failed to load account data');
         } finally {
           setLoading(false);
         }
