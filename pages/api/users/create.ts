@@ -11,10 +11,6 @@ const pool = new Pool({
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  console.log('DB_HOST:', process.env.DB_HOST);
-  console.log('DB_USER:', process.env.DB_USER);
-  console.log('DB_PASSWORD:', process.env.DB_PASSWORD);
-  console.log('DB_NAME:', process.env.DB_NAME);
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { email, password, plan } = req.body;
