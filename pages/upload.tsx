@@ -1,5 +1,5 @@
 // pages/upload.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
 
@@ -10,10 +10,15 @@ export default function Upload() {
   const { userId } = useAuth();
   const router = useRouter();
 
-  if (!userId) {
-    router.push('/login');
-    return null;
-  }
+  // Redirect to login if not logged in (client-side only)
+  useEffect(() => {
+    if (!userId) {
+      router.push('/login');
+    }
+  }, [userId, router]);
+
+  // Show loading state during prerender or redirect
+  if (!userId) return <div>Loading...</div>;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -47,7 +52,7 @@ export default function Upload() {
           setMessage(`Error: ${data.error}`);
         }
       } catch (err) {
-        setMessage(`Network error: ${(err as Error).message}`); // Use err here
+        setMessage(`Network error: ${(err as Error).message}`);
       } finally {
         setLoading(false);
       }
