@@ -58,19 +58,13 @@ export default function Jobs() {
   };
 
   useEffect(() => {
-    if (!userId) {
-      router.push('/login');
-    } else {
-      fetchJobs();
-    }
-  }, [userId, router, fetchJobs]); // fetchJobs is now declared before useEffect
+    fetchJobs(); // Fetch jobs on mount and when filters change
+  }, [jobTypeFilter, zipFilter, radiusFilter]); // Removed fetchJobs from dependencies
 
   const formatSalary = (min: number, max: number, interval: string) => {
     if (min === 0 && max === 0) return 'N/A';
     return `${min}-${max} ${interval || ''}`.trim();
   };
-
-  if (!userId) return <div>Loading...</div>;
 
   return (
     <div className="full-height" style={{ paddingTop: '80px' }}>
