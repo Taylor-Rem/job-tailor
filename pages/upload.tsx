@@ -10,14 +10,12 @@ export default function Upload() {
   const { userId } = useAuth();
   const router = useRouter();
 
-  // Redirect to login if not logged in (client-side only)
   useEffect(() => {
     if (!userId) {
       router.push('/login');
     }
   }, [userId, router]);
 
-  // Show loading state during prerender or redirect
   if (!userId) return <div>Loading...</div>;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,11 +41,15 @@ export default function Upload() {
         const response = await fetch('/api/resumes/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: userId, resume: base64String }),
+          body: JSON.stringify({
+            user_id: userId,
+            resume: base64String,
+            file_name: file.name,
+          }),
         });
         const data = await response.json();
         if (response.ok) {
-          setMessage(`Resume uploaded! Resume ID: ${data.resume_id}`);
+          setMessage(`Resume uploaded! Resume ID: ${data.resume_id}, File: ${file.name}`);
         } else {
           setMessage(`Error: ${data.error}`);
         }

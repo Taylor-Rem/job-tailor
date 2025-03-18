@@ -1,3 +1,4 @@
+// pages/api/resumes/upload.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { Pool } from 'pg';
@@ -21,11 +22,13 @@ const pool = new Pool({
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { user_id, resume } = req.body;
-  if (!user_id || !resume) return res.status(400).json({ error: 'user_id and resume required' });
+  const { user_id, resume, file_name } = req.body;
+  if (!user_id || !resume || !file_name) {
+    return res.status(400).json({ error: 'user_id, resume, and file_name required' });
+  }
 
   const buffer = Buffer.from(resume, 'base64');
-  const s3Key = `resumes/${user_id}/original.pdf`;
+  const s3Key = `resumes/${user_id}/${file_name}`;
 
   try {
     // Upload to S3
@@ -41,8 +44,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Store metadata in RDS
     const client = await pool.connect();
     const result = await client.query(
-      'INSERT INTO user_resumes (user_id, s3_key) VALUES ($1, $2) RETURNING resume_id',
-      [user_id, s3Key]
+      'INSERT INTO user_resumes (user_id, s3_key, file_name) VALUES ($1, $2, $3) RETURNING resume_id',
+      [user_id, s3Key, file_name]
     );
     client.release();
 

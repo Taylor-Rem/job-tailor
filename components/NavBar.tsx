@@ -26,6 +26,9 @@ export default function NavBar() {
             <Link href="/upload" className="link">
                 Upload Resume
             </Link>
+            <Link href="/jobs" className="link">
+                View Jobs
+            </Link>
             <Link href="/account" className="link">
               Account
             </Link>

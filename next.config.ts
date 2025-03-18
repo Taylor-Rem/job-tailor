@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
     SECRET_ACCESS_KEY: process.env.SECRET_ACCESS_KEY,
     REGION: process.env.REGION,
     S3_BUCKET: process.env.S3_BUCKET,
+    GEOCODE_API_KEY: process.env.GEOCODE_API_KEY,
   },
 };
 
