@@ -3,26 +3,25 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
 
-interface Location {
-  CityName: string;
-  Latitude: number;
-  Longitude: number;
-  CountryCode: string;
-  LocationName: string;
-  CountrySubDivisionCode?: string;
-}
-
 interface Job {
   id: number;
   title: string;
   company: string;
   description: string;
   url: string;
-  locations: Location[];
+  zip_code: string;
+  city_name: string;
+  latitude: number;
+  longitude: number;
+  country_code: string;
+  location_name: string;
+  country_subdivision_code: string | null;
+  min_salary: number;
+  max_salary: number;
+  interval_code: string;
   tags: string[];
   remote: boolean;
   job_types: string[];
-  salary_range: string | { max: number; min: number; interval: string } | null;
 }
 
 export default function Jobs() {
@@ -33,15 +32,7 @@ export default function Jobs() {
   const [error, setError] = useState<string | null>(null);
   const [jobTypeFilter, setJobTypeFilter] = useState('');
   const [zipFilter, setZipFilter] = useState('');
-  const [radiusFilter, setRadiusFilter] = useState('50'); // Default 50 miles
-
-  useEffect(() => {
-    if (!userId) {
-      router.push('/login');
-    } else {
-      fetchJobs();
-    }
-  }, [userId, router, jobTypeFilter, zipFilter, radiusFilter]);
+  const [radiusFilter, setRadiusFilter] = useState('50');
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -66,17 +57,17 @@ export default function Jobs() {
     }
   };
 
-  const formatSalary = (salary: Job['salary_range']) => {
-    if (!salary) return 'N/A';
-    if (typeof salary === 'string') return salary;
-    if (typeof salary === 'object' && 'max' in salary && 'min' in salary) {
-      return `${salary.min}-${salary.max} ${salary.interval || ''}`.trim();
+  useEffect(() => {
+    if (!userId) {
+      router.push('/login');
+    } else {
+      fetchJobs();
     }
-    return 'N/A';
-  };
+  }, [userId, router, fetchJobs]); // fetchJobs is now declared before useEffect
 
-  const formatLocations = (locations: Location[]) => {
-    return locations.map(loc => loc.LocationName || loc.CityName).join(', ');
+  const formatSalary = (min: number, max: number, interval: string) => {
+    if (min === 0 && max === 0) return 'N/A';
+    return `${min}-${max} ${interval || ''}`.trim();
   };
 
   if (!userId) return <div>Loading...</div>;
@@ -86,7 +77,6 @@ export default function Jobs() {
       <div className="card">
         <h1 className="title">Job Listings</h1>
 
-        {/* Filters */}
         <div style={{ marginBottom: '20px' }}>
           <label htmlFor="jobType">Job Type: </label>
           <select
@@ -126,7 +116,6 @@ export default function Jobs() {
           </select>
         </div>
 
-        {/* Job Listings */}
         {loading ? (
           <p className="message">Loading jobs...</p>
         ) : error ? (
@@ -151,10 +140,10 @@ export default function Jobs() {
                 <tr key={job.id}>
                   <td>{job.title}</td>
                   <td>{job.company}</td>
-                  <td>{formatLocations(job.locations)}</td>
+                  <td>{job.location_name || job.city_name}</td>
                   <td>{job.job_types.join(', ')}</td>
                   <td>{job.remote ? 'Yes' : 'No'}</td>
-                  <td>{formatSalary(job.salary_range)}</td>
+                  <td>{formatSalary(job.min_salary, job.max_salary, job.interval_code)}</td>
                   <td>
                     <a href={job.url} target="_blank" rel="noopener noreferrer" className="link">
                       Apply
