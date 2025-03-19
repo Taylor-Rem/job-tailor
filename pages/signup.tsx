@@ -41,6 +41,7 @@ export default function Signup() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Email"
           className="input"
+          style={{marginBottom: '1em'}}
           required
         />
         <input
@@ -49,6 +50,7 @@ export default function Signup() {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
           className="input"
+          style={{marginBottom: '1em'}}
           required
         />
         <select

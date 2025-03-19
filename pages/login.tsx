@@ -46,6 +46,7 @@ export default function Login() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Email"
           className="input"
+          style={{marginBottom: '1em'}}
           required
         />
         <input
@@ -54,6 +55,7 @@ export default function Login() {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
           className="input"
+          style={{marginBottom: '1em'}}
           required
         />
         <button type="submit" disabled={loading} className="button">
