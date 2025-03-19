@@ -67,14 +67,6 @@ export default function Jobs() {
     return `${min}-${max} ${interval || ''}`.trim();
   };
 
-  const handleCreateResume = () => {
-    if (!userId) {
-      router.push('/login'); // Redirect to login if not authenticated
-    } else {
-      router.push('/resume'); // Redirect to resume page if authenticated
-    }
-  };
-
   return (
     <div className="full-height">
       <div style={{ padding: '20px' }}>
