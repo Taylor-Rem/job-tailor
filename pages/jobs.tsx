@@ -1,7 +1,6 @@
-// pages/jobs.tsx
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-// import { useRouter } from 'next/router';
+import Select from 'react-select';
 
 interface Job {
   id: number;
@@ -26,13 +25,16 @@ interface Job {
 
 export default function Jobs() {
   const { userId } = useAuth();
-  // const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [jobTypeFilter, setJobTypeFilter] = useState('');
   const [zipFilter, setZipFilter] = useState('');
   const [radiusFilter, setRadiusFilter] = useState('50');
+  const [locationFilter, setLocationFilter] = useState('');
+  const [tagFilter, setTagFilter] = useState('');
+  const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([]);
+  const [tagOptions, setTagOptions] = useState<{ value: string; label: string }[]>([]);
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -42,6 +44,8 @@ export default function Jobs() {
         ...(jobTypeFilter && { job_type: jobTypeFilter }),
         ...(zipFilter && { zip: zipFilter }),
         ...(zipFilter && { radius: radiusFilter }),
+        ...(locationFilter && { location: locationFilter }),
+        ...(tagFilter && { tag: tagFilter }),
       }).toString();
       const response = await fetch(`/api/jobs/list?${query}`);
       const data = await response.json();
@@ -57,10 +61,25 @@ export default function Jobs() {
     }
   };
 
+  const fetchFilterOptions = async () => {
+    try {
+      const [locationsRes, tagsRes] = await Promise.all([
+        fetch('/api/jobs/locations'),
+        fetch('/api/jobs/tags'),
+      ]);
+      const locations = await locationsRes.json();
+      const tags = await tagsRes.json();
+      setLocationOptions(locations.map((loc: string) => ({ value: loc, label: loc })));
+      setTagOptions(tags.map((tag: string) => ({ value: tag, label: tag })));
+    } catch (err) {
+      console.error('Failed to fetch filter options:', err);
+    }
+  };
+
   useEffect(() => {
+    fetchFilterOptions(); // Fetch options on mount
     fetchJobs(); // Fetch jobs on mount and when filters change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobTypeFilter, zipFilter, radiusFilter]);
+  }, [jobTypeFilter, zipFilter, radiusFilter, locationFilter, tagFilter]);
 
   const formatSalary = (min: number, max: number, interval: string) => {
     if (min === 0 && max === 0) return 'N/A';
@@ -68,17 +87,14 @@ export default function Jobs() {
   };
 
   const toMoney = (num: number) => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD'
-    }).format(num);
-};
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
+  };
 
   return (
     <div className="full-height">
       <div style={{ padding: '20px' }}>
         <div style={{ marginTop: '2em', marginBottom: '1em' }} className="card">
-        <h1 className="title">Filters</h1>
+          <h1 className="title">Filters</h1>
           <div id="job-filters">
             <div className="filter-items">
               <label htmlFor="jobType">Job Type: </label>
@@ -120,10 +136,36 @@ export default function Jobs() {
                 <option value="100">100</option>
               </select>
             </div>
+            <div className="filter-items">
+              <label htmlFor="location">Location: </label>
+              <Select
+                id="location"
+                options={locationOptions}
+                value={locationOptions.find((opt) => opt.value === locationFilter) || null}
+                onChange={(option) => setLocationFilter(option ? option.value : '')}
+                placeholder="Select a location"
+                isClearable
+                className="react-select"
+                classNamePrefix="select"
+              />
+            </div>
+            <div className="filter-items">
+              <label htmlFor="tag">Position Type: </label>
+              <Select
+                id="tag"
+                options={tagOptions}
+                value={tagOptions.find((opt) => opt.value === tagFilter) || null}
+                onChange={(option) => setTagFilter(option ? option.value : '')}
+                placeholder="Select a position type"
+                isClearable
+                className="react-select"
+                classNamePrefix="select"
+              />
+            </div>
           </div>
         </div>
         <div className="card">
-        <h1 className="title">Job Listings</h1>
+          <h1 className="title">Job Listings</h1>
           {loading ? (
             <p className="message">Loading jobs...</p>
           ) : error ? (
@@ -153,7 +195,7 @@ export default function Jobs() {
                     <td>{job.remote ? 'Yes' : 'No'}</td>
                     <td>{formatSalary(job.min_salary, job.max_salary, job.interval_code)}</td>
                     <td>
-                    <a href={userId ? '/create_resume' : 'signup'} className="link">
+                      <a href={userId ? '/create_resume' : 'signup'} className="link">
                         Create Resume
                       </a>
                       <a href={job.url} target="_blank" rel="noopener noreferrer" className="link">

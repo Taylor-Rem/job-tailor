@@ -26,7 +26,7 @@ async function getLatLongFromZip(zip: string): Promise<{ lat: number; lng: numbe
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { job_type, zip, radius } = req.query;
+  const { job_type, zip, radius, location, tag } = req.query;
 
   try {
     const client = await pool.connect();
@@ -41,22 +41,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       WHERE j.status = $1
     `;
     const params = ['open'];
+    let paramIndex = 2;
 
     if (job_type) {
-      query += ' AND j.job_types @> ARRAY[$2]::varchar[]';
+      query += ` AND j.job_types @> ARRAY[$${paramIndex}]::varchar[]`;
       params.push(job_type as string);
+      paramIndex++;
     }
 
     if (zip && radius) {
       const { lat, lng } = await getLatLongFromZip(zip as string);
-      const radiusMeters = parseFloat(radius as string) * 1609.34; // Miles to meters
+      const radiusMeters = parseFloat(radius as string) * 1609.34;
       query += `
         AND earth_distance(
-          ll_to_earth($${params.length + 1}, $${params.length + 2}),
+          ll_to_earth($${paramIndex}, $${paramIndex + 1}),
           ll_to_earth(jl.latitude, jl.longitude)
-        ) <= $${params.length + 3}
+        ) <= $${paramIndex + 2}
       `;
-      params.push(lat.toString(), lng.toString(), radiusMeters.toString()); // Convert to strings
+      params.push(lat.toString(), lng.toString(), radiusMeters.toString());
+      paramIndex += 3;
+    }
+
+    if (location) {
+      query += ` AND (jl.location_name = $${paramIndex} OR jl.city_name = $${paramIndex})`;
+      params.push(location as string);
+      paramIndex++;
+    }
+
+    if (tag) {
+      query += ` AND $${paramIndex} = ANY(j.tags)`;
+      params.push(tag as string);
+      paramIndex++;
     }
 
     const result = await client.query(query, params);

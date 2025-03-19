@@ -205,3 +205,39 @@ tr:hover {
   justify-content: space-around;
   gap: 1em;
 }
+.react-select {
+  width: 200px;
+}
+
+.react-select__control {
+  background-color: #2d2d2d;
+  color: #ffffff;
+  border: 1px solid #444444;
+  border-radius: 4px;
+}
+
+.react-select__control--is-focused {
+  border-color: #1e90ff;
+  box-shadow: none;
+}
+
+.react-select__menu {
+  background-color: #2d2d2d;
+  color: #ffffff;
+}
+
+.react-select__option {
+  background-color: #2d2d2d;
+}
+
+.react-select__option--is-focused {
+  background-color: #4682b4;
+}
+
+.react-select__single-value {
+  color: #ffffff;
+}
+
+.react-select__placeholder {
+  color: #aaaaaa;
+}
