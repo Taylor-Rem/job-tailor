@@ -77,49 +77,53 @@ export default function Jobs() {
   return (
     <div className="full-height">
       <div style={{ padding: '20px' }}>
-        <div className="card">
-          <h1 className="title">Job Listings</h1>
-
-          <div style={{ marginBottom: '20px' }}>
-            <label htmlFor="jobType">Job Type: </label>
-            <select
-              id="jobType"
-              value={jobTypeFilter}
-              onChange={(e) => setJobTypeFilter(e.target.value)}
-              className="select"
-            >
-              <option value="">All</option>
-              <option value="full-time">Full-time</option>
-              <option value="part-time">Part-time</option>
-              <option value="contract">Contract</option>
-            </select>
-
-            <label htmlFor="zip" style={{ marginLeft: '20px' }}>Zip Code: </label>
-            <input
-              id="zip"
-              type="text"
-              value={zipFilter}
-              onChange={(e) => setZipFilter(e.target.value)}
-              placeholder="e.g., 94105"
-              className="input"
-              style={{ width: '100px' }}
-            />
-
-            <label htmlFor="radius" style={{ marginLeft: '20px' }}>Radius (miles): </label>
-            <select
-              id="radius"
-              value={radiusFilter}
-              onChange={(e) => setRadiusFilter(e.target.value)}
-              className="select"
-            >
-              <option value="10">10</option>
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
+        <div style={{ marginTop: '2em', marginBottom: '1em' }} className="card">
+        <h1 className="title">Filters</h1>
+          <div id="job-filters">
+            <div className="filter-items">
+              <label htmlFor="jobType">Job Type: </label>
+              <select
+                id="jobType"
+                value={jobTypeFilter}
+                onChange={(e) => setJobTypeFilter(e.target.value)}
+                className="select"
+              >
+                <option value="">All</option>
+                <option value="full-time">Full-time</option>
+                <option value="part-time">Part-time</option>
+                <option value="contract">Contract</option>
+              </select>
+            </div>
+            <div className="filter-items">
+              <label htmlFor="zip">Zip Code: </label>
+              <input
+                id="zip"
+                type="text"
+                value={zipFilter}
+                onChange={(e) => setZipFilter(e.target.value)}
+                placeholder="e.g., 94105"
+                className="input"
+                style={{ width: '100px' }}
+              />
+            </div>
+            <div className="filter-items">
+              <label htmlFor="radius">Radius (miles): </label>
+              <select
+                id="radius"
+                value={radiusFilter}
+                onChange={(e) => setRadiusFilter(e.target.value)}
+                className="select"
+              >
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
           </div>
         </div>
         <div className="card">
+        <h1 className="title">Job Listings</h1>
           {loading ? (
             <p className="message">Loading jobs...</p>
           ) : error ? (
