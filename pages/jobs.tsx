@@ -64,8 +64,15 @@ export default function Jobs() {
 
   const formatSalary = (min: number, max: number, interval: string) => {
     if (min === 0 && max === 0) return 'N/A';
-    return `${min}-${max} ${interval || ''}`.trim();
+    return `${toMoney(min)}-${toMoney(max)} ${interval || ''}`.trim();
   };
+
+  const toMoney = (num: number) => {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD'
+    }).format(num);
+};
 
   return (
     <div className="full-height">
@@ -111,7 +118,8 @@ export default function Jobs() {
               <option value="100">100</option>
             </select>
           </div>
-
+        </div>
+        <div className="card">
           {loading ? (
             <p className="message">Loading jobs...</p>
           ) : error ? (
@@ -128,7 +136,7 @@ export default function Jobs() {
                   <th>Type</th>
                   <th>Remote</th>
                   <th>Salary</th>
-                  <th>Link</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -141,6 +149,9 @@ export default function Jobs() {
                     <td>{job.remote ? 'Yes' : 'No'}</td>
                     <td>{formatSalary(job.min_salary, job.max_salary, job.interval_code)}</td>
                     <td>
+                    <a href={userId ? '/create_resume' : 'signup'} className="link">
+                        Create Resume
+                      </a>
                       <a href={job.url} target="_blank" rel="noopener noreferrer" className="link">
                         Apply
                       </a>
