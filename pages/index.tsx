@@ -1,28 +1,31 @@
-import Link from 'next/link';
+// pages/index.tsx
+import { useRouter } from 'next/router';
 
 export default function Home() {
+  const router = useRouter();
+
+  const handleGetStarted = () => {
+    router.push('/jobs');
+  };
+
   return (
-    <div className="full-height" style={{ paddingTop: '80px' }}>
-      <div className="card">
-        <h1 className="title">Welcome to Job Tailor!</h1>
-        <p className="intro-text">
-          The all-in-one app for finding jobs and creating custom resumes for each position. Here’s how it works:
-        </p>
-        <div className="steps">
-          <p className="step">
-            <span className="step-number">Step 1.</span> Create an account or log in to an existing account
-          </p>
-          <p className="step">
-            <span className="step-number">Step 2.</span> Upload your most recent resume
-          </p>
-          <p className="step">
-            <span className="step-number">Step 3.</span> Browse job listings and generate custom resumes for each one
-          </p>
-        </div>
-        <Link href="/signup">
-          <button className="button">Get Started Now!</button>
-        </Link>
-      </div>
+    <div style={{ textAlign: 'center', padding: '50px' }}>
+      <h1>Welcome to Job Tailor</h1>
+      <p>Find your dream job and tailor your resume with ease!</p>
+      <button
+        onClick={handleGetStarted}
+        style={{
+          padding: '10px 20px',
+          fontSize: '16px',
+          backgroundColor: '#0070f3',
+          color: 'white',
+          border: 'none',
+          borderRadius: '5px',
+          cursor: 'pointer',
+        }}
+      >
+        Get Started
+      </button>
     </div>
   );
 }

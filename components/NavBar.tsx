@@ -21,13 +21,13 @@ export default function NavBar() {
         <Link href="/" className="link">
           Home
         </Link>
+        <Link href="/jobs" className="link">
+                View Jobs
+            </Link>
         {userId ? (
           <>
             <Link href="/upload" className="link">
                 Upload Resume
-            </Link>
-            <Link href="/jobs" className="link">
-                View Jobs
             </Link>
             <Link href="/account" className="link">
               Account

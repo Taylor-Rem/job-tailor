@@ -59,95 +59,144 @@ export default function Jobs() {
 
   useEffect(() => {
     fetchJobs(); // Fetch jobs on mount and when filters change
-  }, [jobTypeFilter, zipFilter, radiusFilter]); // Removed fetchJobs from dependencies
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobTypeFilter, zipFilter, radiusFilter]);
 
   const formatSalary = (min: number, max: number, interval: string) => {
     if (min === 0 && max === 0) return 'N/A';
     return `${min}-${max} ${interval || ''}`.trim();
   };
 
+  const handleCreateResume = () => {
+    if (!userId) {
+      router.push('/login'); // Redirect to login if not authenticated
+    } else {
+      router.push('/resume'); // Redirect to resume page if authenticated
+    }
+  };
+
   return (
-    <div className="full-height" style={{ paddingTop: '80px' }}>
-      <div className="card">
-        <h1 className="title">Job Listings</h1>
-
-        <div style={{ marginBottom: '20px' }}>
-          <label htmlFor="jobType">Job Type: </label>
-          <select
-            id="jobType"
-            value={jobTypeFilter}
-            onChange={(e) => setJobTypeFilter(e.target.value)}
-            className="select"
-          >
-            <option value="">All</option>
-            <option value="full-time">Full-time</option>
-            <option value="part-time">Part-time</option>
-            <option value="contract">Contract</option>
-          </select>
-
-          <label htmlFor="zip" style={{ marginLeft: '20px' }}>Zip Code: </label>
-          <input
-            id="zip"
-            type="text"
-            value={zipFilter}
-            onChange={(e) => setZipFilter(e.target.value)}
-            placeholder="e.g., 94105"
-            className="input"
-            style={{ width: '100px' }}
-          />
-
-          <label htmlFor="radius" style={{ marginLeft: '20px' }}>Radius (miles): </label>
-          <select
-            id="radius"
-            value={radiusFilter}
-            onChange={(e) => setRadiusFilter(e.target.value)}
-            className="select"
-          >
-            <option value="10">10</option>
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
+    <div className="full-height">
+      {/* Navigation Bar */}
+      <nav style={{ backgroundColor: '#f8f8f8', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ margin: 0 }}>Job Tailor</h2>
+        <div>
+          {userId ? (
+            <>
+              <button
+                onClick={() => router.push('/profile')}
+                style={{ marginRight: '10px', padding: '5px 10px', backgroundColor: '#0070f3', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+              >
+                Profile
+              </button>
+              <button
+                onClick={handleCreateResume}
+                style={{ padding: '5px 10px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+              >
+                Create Resume
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => router.push('/login')}
+                style={{ marginRight: '10px', padding: '5px 10px', backgroundColor: '#0070f3', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+              >
+                Log In
+              </button>
+              <button
+                onClick={handleCreateResume}
+                style={{ padding: '5px 10px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+              >
+                Create Resume
+              </button>
+            </>
+          )}
         </div>
+      </nav>
 
-        {loading ? (
-          <p className="message">Loading jobs...</p>
-        ) : error ? (
-          <p className="message">{error}</p>
-        ) : jobs.length === 0 ? (
-          <p className="message">No jobs found.</p>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Company</th>
-                <th>Location</th>
-                <th>Type</th>
-                <th>Remote</th>
-                <th>Salary</th>
-                <th>Link</th>
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map((job) => (
-                <tr key={job.id}>
-                  <td>{job.title}</td>
-                  <td>{job.company}</td>
-                  <td>{job.location_name || job.city_name}</td>
-                  <td>{job.job_types.join(', ')}</td>
-                  <td>{job.remote ? 'Yes' : 'No'}</td>
-                  <td>{formatSalary(job.min_salary, job.max_salary, job.interval_code)}</td>
-                  <td>
-                    <a href={job.url} target="_blank" rel="noopener noreferrer" className="link">
-                      Apply
-                    </a>
-                  </td>
+      <div style={{ padding: '20px' }}>
+        <div className="card">
+          <h1 className="title">Job Listings</h1>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label htmlFor="jobType">Job Type: </label>
+            <select
+              id="jobType"
+              value={jobTypeFilter}
+              onChange={(e) => setJobTypeFilter(e.target.value)}
+              className="select"
+            >
+              <option value="">All</option>
+              <option value="full-time">Full-time</option>
+              <option value="part-time">Part-time</option>
+              <option value="contract">Contract</option>
+            </select>
+
+            <label htmlFor="zip" style={{ marginLeft: '20px' }}>Zip Code: </label>
+            <input
+              id="zip"
+              type="text"
+              value={zipFilter}
+              onChange={(e) => setZipFilter(e.target.value)}
+              placeholder="e.g., 94105"
+              className="input"
+              style={{ width: '100px' }}
+            />
+
+            <label htmlFor="radius" style={{ marginLeft: '20px' }}>Radius (miles): </label>
+            <select
+              id="radius"
+              value={radiusFilter}
+              onChange={(e) => setRadiusFilter(e.target.value)}
+              className="select"
+            >
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+
+          {loading ? (
+            <p className="message">Loading jobs...</p>
+          ) : error ? (
+            <p className="message">{error}</p>
+          ) : jobs.length === 0 ? (
+            <p className="message">No jobs found.</p>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Company</th>
+                  <th>Location</th>
+                  <th>Type</th>
+                  <th>Remote</th>
+                  <th>Salary</th>
+                  <th>Link</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              </thead>
+              <tbody>
+                {jobs.map((job) => (
+                  <tr key={job.id}>
+                    <td>{job.title}</td>
+                    <td>{job.company}</td>
+                    <td>{job.location_name || job.city_name}</td>
+                    <td>{job.job_types.join(', ')}</td>
+                    <td>{job.remote ? 'Yes' : 'No'}</td>
+                    <td>{formatSalary(job.min_salary, job.max_salary, job.interval_code)}</td>
+                    <td>
+                      <a href={job.url} target="_blank" rel="noopener noreferrer" className="link">
+                        Apply
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
   );
