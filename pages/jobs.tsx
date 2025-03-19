@@ -77,44 +77,6 @@ export default function Jobs() {
 
   return (
     <div className="full-height">
-      {/* Navigation Bar */}
-      <nav style={{ backgroundColor: '#f8f8f8', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ margin: 0 }}>Job Tailor</h2>
-        <div>
-          {userId ? (
-            <>
-              <button
-                onClick={() => router.push('/profile')}
-                style={{ marginRight: '10px', padding: '5px 10px', backgroundColor: '#0070f3', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-              >
-                Profile
-              </button>
-              <button
-                onClick={handleCreateResume}
-                style={{ padding: '5px 10px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-              >
-                Create Resume
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() => router.push('/login')}
-                style={{ marginRight: '10px', padding: '5px 10px', backgroundColor: '#0070f3', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-              >
-                Log In
-              </button>
-              <button
-                onClick={handleCreateResume}
-                style={{ padding: '5px 10px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-              >
-                Create Resume
-              </button>
-            </>
-          )}
-        </div>
-      </nav>
-
       <div style={{ padding: '20px' }}>
         <div className="card">
           <h1 className="title">Job Listings</h1>
