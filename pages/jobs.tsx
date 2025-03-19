@@ -35,6 +35,7 @@ export default function Jobs() {
   const [tagFilter, setTagFilter] = useState('');
   const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([]);
   const [tagOptions, setTagOptions] = useState<{ value: string; label: string }[]>([]);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -77,17 +78,22 @@ export default function Jobs() {
   };
 
   useEffect(() => {
-    fetchFilterOptions(); // Fetch options on mount
-    fetchJobs(); // Fetch jobs on mount and when filters change
+    fetchFilterOptions();
+    fetchJobs();
   }, [jobTypeFilter, zipFilter, radiusFilter, locationFilter, tagFilter]);
 
   const formatSalary = (min: number, max: number, interval: string) => {
     if (min === 0 && max === 0) return 'N/A';
-    return `${toMoney(min)}-${toMoney(max)} ${interval || ''}`.trim();
+    const intervalText = interval === 'PH' ? 'per hour' : interval === 'PA' ? 'per year' : interval;
+    return `${toMoney(min)}-${toMoney(max)} ${intervalText}`.trim();
   };
 
   const toMoney = (num: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
+  };
+
+  const handleJobClick = (job: Job) => {
+    setSelectedJob(job);
   };
 
   return (
@@ -164,48 +170,51 @@ export default function Jobs() {
             </div>
           </div>
         </div>
-        <div className="card">
-          <h1 className="title">Job Listings</h1>
-          {loading ? (
-            <p className="message">Loading jobs...</p>
-          ) : error ? (
-            <p className="message">{error}</p>
-          ) : jobs.length === 0 ? (
-            <p className="message">No jobs found.</p>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Company</th>
-                  <th>Location</th>
-                  <th>Type</th>
-                  <th>Remote</th>
-                  <th>Salary</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
+        <div className="jobs-container">
+          <div className="job-list-container">
+            <h1 className="title">Job Listings</h1>
+            {loading ? (
+              <p className="message">Loading jobs...</p>
+            ) : error ? (
+              <p className="message">{error}</p>
+            ) : jobs.length === 0 ? (
+              <p className="message">No jobs found.</p>
+            ) : (
+              <div className="job-list">
                 {jobs.map((job) => (
-                  <tr key={job.id}>
-                    <td>{job.title}</td>
-                    <td>{job.company}</td>
-                    <td>{job.location_name || job.city_name}</td>
-                    <td>{job.job_types.join(', ')}</td>
-                    <td>{job.remote ? 'Yes' : 'No'}</td>
-                    <td>{formatSalary(job.min_salary, job.max_salary, job.interval_code)}</td>
-                    <td>
-                      <a href={userId ? '/create_resume' : 'signup'} className="link">
-                        Create Resume
-                      </a>
-                      <a href={job.url} target="_blank" rel="noopener noreferrer" className="link">
-                        Apply
-                      </a>
-                    </td>
-                  </tr>
+                  <div
+                    key={job.id}
+                    className={`job-item ${selectedJob?.id === job.id ? 'selected' : ''}`}
+                    onClick={() => handleJobClick(job)}
+                  >
+                    <span>{job.title}</span>
+                    <span>{job.company}</span>
+                    <span>{job.location_name || job.city_name}</span>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            )}
+          </div>
+          {selectedJob && (
+            <div className="job-details-container">
+              <div className="job-details-content">
+                <h2>{selectedJob.title}</h2>
+                <p><strong>Company:</strong> {selectedJob.company}</p>
+                <p><strong>Location:</strong> {selectedJob.location_name || selectedJob.city_name}</p>
+                <p><strong>Type:</strong> {selectedJob.job_types.join(', ')}</p>
+                <p><strong>Remote:</strong> {selectedJob.remote ? 'Yes' : 'No'}</p>
+                <p><strong>Salary:</strong> {formatSalary(selectedJob.min_salary, selectedJob.max_salary, selectedJob.interval_code)}</p>
+                <p><strong>Description:</strong> {selectedJob.description}</p>
+                <div className="job-details-actions">
+                  <a href={userId ? '/create_resume' : 'signup'} className="button">
+                    Create Resume
+                  </a>
+                  <a href={selectedJob.url} target="_blank" rel="noopener noreferrer" className="button">
+                    Apply
+                  </a>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>
