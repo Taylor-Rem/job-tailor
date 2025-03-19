@@ -26,7 +26,7 @@ interface Job {
 
 export default function Jobs() {
   const { userId } = useAuth();
-  const router = useRouter();
+  // const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
