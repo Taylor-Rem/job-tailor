@@ -109,7 +109,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const loggableQuery = query.split(/\$\d+/).reduce((acc, part, i) => {
       if (i >= params.length) return acc + part;
       const param = params[i];
-      let formattedParam = param === null || param === undefined ? 'NULL' : typeof param === 'string' ? `'${param.replace(/'/g, "''")}'` : param;
+      const formattedParam = param === null || param === undefined ? 'NULL' : typeof param === 'string' ? `'${param.replace(/'/g, "''")}'` : param;
       return acc + part + formattedParam;
     }, '');
     console.log('Executable Query:', loggableQuery);

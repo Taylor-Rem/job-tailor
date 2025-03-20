@@ -87,7 +87,7 @@ export default function Jobs() {
   useEffect(() => {
     fetchFilterOptions();
     fetchJobs();
-  }, [jobTypeFilter, zipFilter, radiusFilter, locationFilter, tagFilter, page]);
+  }, [jobTypeFilter, zipFilter, radiusFilter, locationFilter, tagFilter, page, fetchJobs]);
 
   const formatSalary = (min: number, max: number, interval: string) => {
     if (min === 0 && max === 0) return 'N/A';
@@ -120,7 +120,7 @@ export default function Jobs() {
     const elements = [];
     let listItems: string[] = [];
 
-    segments.forEach((segment, index) => {
+    segments.forEach((segment) => {
       const trimmed = segment.trim();
       // List detection: explicit markers or patterns like numbers
       if (
