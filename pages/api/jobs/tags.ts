@@ -15,9 +15,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const client = await pool.connect();
     const query = `
-      SELECT DISTINCT unnest(tags) AS tag
-      FROM jobs
-      WHERE tags IS NOT NULL
+      SELECT DISTINCT tag
+      FROM job_tags
       ORDER BY tag;
     `;
     const result = await client.query(query);

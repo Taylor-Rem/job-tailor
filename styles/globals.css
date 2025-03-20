@@ -244,21 +244,65 @@ tr:hover {
 .job-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  max-height: 500px; /* Adjust as needed */
+  overflow-y: auto;
 }
 
 .job-item {
-  background-color: #2a2a2a;
-  padding: 15px;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); /* Equal columns, but flexible */
   align-items: center;
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+  gap: 10px; /* Space between columns */
+}
+
+.job-header {
+  font-weight: bold;
+  background-color: #f5f5f5;
+  border-bottom: 2px solid #ccc;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.job-title {
+  text-align: left;
+  word-wrap: break-word; /* Allows long titles to wrap */
+  overflow-wrap: break-word;
+  white-space: normal; /* Ensures wrapping increases height */
+}
+
+.job-company {
+  text-align: center;
+}
+
+.job-locations {
+  text-align: right;
+  white-space: nowrap; /* Prevents locations from wrapping */
 }
 
 .job-item:hover {
   background-color: #333333;
+}
+
+.job-description {
+  margin-top: 10px;
+}
+
+.job-description p {
+  margin: 10px 0;
+  line-height: 1.5;
+}
+
+.job-description ul {
+  margin: 10px 0 10px 20px;
+  padding-left: 0;
+}
+
+.job-description li {
+  margin: 5px 0;
+  line-height: 1.5;
 }
 
 /* Jobs Container */
@@ -311,7 +355,7 @@ tr:hover {
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-  max-height: 50vh; /* Match job list height */
+  max-height: 70vh; /* Match job list height */
   overflow-y: auto;
 }
 
