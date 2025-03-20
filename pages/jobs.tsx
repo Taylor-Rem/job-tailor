@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import Select from 'react-select';
 
@@ -42,7 +42,22 @@ export default function Jobs() {
   const [totalPages, setTotalPages] = useState(1);
   const [collapsedLocations, setCollapsedLocations] = useState(true);
 
-  const fetchJobs = async () => {
+  const fetchFilterOptions = async () => {
+    try {
+      const [locationsRes, tagsRes] = await Promise.all([
+        fetch('/api/jobs/locations'),
+        fetch('/api/jobs/tags'),
+      ]);
+      const locations = await locationsRes.json();
+      const tags = await tagsRes.json();
+      setLocationOptions(locations.map((loc: string) => ({ value: loc, label: loc })));
+      setTagOptions(tags.map((tag: string) => ({ value: tag, label: tag })));
+    } catch (err) {
+      console.error('Failed to fetch filter options:', err);
+    }
+  };
+
+  const fetchJobs = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -67,23 +82,8 @@ export default function Jobs() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchFilterOptions = async () => {
-    try {
-      const [locationsRes, tagsRes] = await Promise.all([
-        fetch('/api/jobs/locations'),
-        fetch('/api/jobs/tags'),
-      ]);
-      const locations = await locationsRes.json();
-      const tags = await tagsRes.json();
-      setLocationOptions(locations.map((loc: string) => ({ value: loc, label: loc })));
-      setTagOptions(tags.map((tag: string) => ({ value: tag, label: tag })));
-    } catch (err) {
-      console.error('Failed to fetch filter options:', err);
-    }
-  };
-
+  }, [jobTypeFilter, zipFilter, radiusFilter, locationFilter, tagFilter, page]); // Dependencies here
+  
   useEffect(() => {
     fetchFilterOptions();
     fetchJobs();

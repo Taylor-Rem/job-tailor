@@ -105,15 +105,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     `;
     params.push(limit.toString(), offset.toString());
 
-    // Log the query for debugging
-    const loggableQuery = query.split(/\$\d+/).reduce((acc, part, i) => {
-      if (i >= params.length) return acc + part;
-      const param = params[i];
-      const formattedParam = param === null || param === undefined ? 'NULL' : typeof param === 'string' ? `'${param.replace(/'/g, "''")}'` : param;
-      return acc + part + formattedParam;
-    }, '');
-    console.log('Executable Query:', loggableQuery);
-
     // Build the count query with the same filters
     let countQuery = `SELECT COUNT(DISTINCT j.id) FROM jobs j
       LEFT JOIN jobs_locations_link jll ON j.id = jll.job_id
