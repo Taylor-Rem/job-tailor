@@ -23,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const result = await client.query(query);
     client.release();
 
-    const locations = result.rows.map((row) => row.location);
+    const locations = result.rows.map((row) => row.location).filter(Boolean);
     res.status(200).json(locations);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
