@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
@@ -10,15 +11,12 @@ export default function Account() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Redirect to login if not logged in
   useEffect(() => {
     if (!userId) {
       router.push('/login');
     } else {
-      // Fetch user data
       const fetchUserData = async () => {
         try {
-          // Fetch email
           const emailRes = await fetch('/api/users/me', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -28,7 +26,6 @@ export default function Account() {
           if (emailRes.ok) setEmail(emailData.email);
           else throw new Error(emailData.error);
 
-          // Fetch resume URL
           const resumeRes = await fetch('/api/resumes/view', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -47,6 +44,21 @@ export default function Account() {
     }
   }, [userId, router]);
 
+  const handleDeleteResume = async () => {
+    if (!resumeUrl) return;
+    try {
+      const res = await fetch('/api/resumes/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      if (res.ok) setResumeUrl(null);
+      else throw new Error('Failed to delete resume');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete resume');
+    }
+  };
+
   if (!userId) return null;
 
   return (
@@ -62,14 +74,22 @@ export default function Account() {
             <p className="message">User ID: {userId}</p>
             <p className="message">Email: {email}</p>
             {resumeUrl ? (
-              <p className="message">
-                <a href={resumeUrl} target="_blank" rel="noopener noreferrer" className="link">
-                  View Uploaded Resume
-                </a>
-              </p>
+              <>
+                <p className="message">
+                  <a href={resumeUrl} target="_blank" rel="noopener noreferrer" className="link">
+                    View Uploaded Resume
+                  </a>
+                </p>
+                <button onClick={handleDeleteResume} className="button">
+                  Delete Resume
+                </button>
+              </>
             ) : (
               <p className="message">No resume uploaded yet.</p>
             )}
+            <Link href="/upload" className="link">
+              Upload a Resume
+            </Link>
           </>
         )}
       </div>

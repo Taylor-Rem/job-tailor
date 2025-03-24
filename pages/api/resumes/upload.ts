@@ -1,7 +1,7 @@
-// pages/api/resumes/upload.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { Pool } from 'pg';
+import pdfParse from 'pdf-parse';
 
 const s3 = new S3Client({
   region: process.env.REGION,
@@ -31,7 +31,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const s3Key = `resumes/${user_id}/${file_name}`;
 
   try {
-    // Upload to S3
+    // Upload PDF to S3
     await s3.send(
       new PutObjectCommand({
         Bucket: process.env.S3_BUCKET,
@@ -41,11 +41,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
     );
 
-    // Store metadata in RDS
+    // Extract text with pdf-parse
+    const { text } = await pdfParse(buffer);
+    const resumeText = text.replace(/%[0-9A-F]{2}/g, '').trim(); // Basic cleanup
+
+    // Replace existing resume in DB
     const client = await pool.connect();
+    await client.query('DELETE FROM user_resumes WHERE user_id = $1', [user_id]);
     const result = await client.query(
-      'INSERT INTO user_resumes (user_id, s3_key, file_name) VALUES ($1, $2, $3) RETURNING resume_id',
-      [user_id, s3Key, file_name]
+      'INSERT INTO user_resumes (user_id, s3_key, file_name, resume_text) VALUES ($1, $2, $3, $4) RETURNING resume_id',
+      [user_id, s3Key, file_name, resumeText]
     );
     client.release();
 

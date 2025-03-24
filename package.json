@@ -11,9 +11,12 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.758.0",
     "@aws-sdk/s3-request-presigner": "^3.758.0",
+    "@types/pdfkit": "^0.13.9",
     "bcrypt": "^5.1.1",
-    "next": "15.2.2",
+    "next": "^15.2.3",
     "node-fetch": "^3.3.2",
+    "pdf-parse": "^1.1.1",
+    "pdfkit": "^0.16.0",
     "pg": "^8.14.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

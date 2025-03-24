@@ -41,6 +41,7 @@ export default function Jobs() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [collapsedLocations, setCollapsedLocations] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false); // New state for loading feedback
 
   const fetchFilterOptions = async () => {
     try {
@@ -82,8 +83,8 @@ export default function Jobs() {
     } finally {
       setLoading(false);
     }
-  }, [jobTypeFilter, zipFilter, radiusFilter, locationFilter, tagFilter, page]); // Dependencies here
-  
+  }, [jobTypeFilter, zipFilter, radiusFilter, locationFilter, tagFilter, page]);
+
   useEffect(() => {
     fetchFilterOptions();
     fetchJobs();
@@ -101,7 +102,7 @@ export default function Jobs() {
 
   const handleJobClick = (job: Job) => {
     setSelectedJob(job);
-    setCollapsedLocations(true); // Reset to collapsed when selecting a new job
+    setCollapsedLocations(true);
   };
 
   const handlePageChange = (newPage: number) => {
@@ -115,19 +116,17 @@ export default function Jobs() {
   };
 
   const formatDescription = (text: string) => {
-    // Split text into potential segments (newlines or periods with spaces)
     const segments = text.split(/(\n|\.\s+)/).filter(segment => segment.trim());
     const elements = [];
     let listItems: string[] = [];
 
     segments.forEach((segment) => {
       const trimmed = segment.trim();
-      // List detection: explicit markers or patterns like numbers
       if (
         trimmed.startsWith('- ') ||
         trimmed.startsWith('* ') ||
-        /^\d+\.\s/.test(trimmed) || // e.g., "1. Do this"
-        trimmed.toLowerCase().includes('include') // Contextual hint for lists
+        /^\d+\.\s/.test(trimmed) ||
+        trimmed.toLowerCase().includes('include')
       ) {
         const items = trimmed
           .split(/[-*]\s+|\d+\.\s+/)
@@ -135,7 +134,6 @@ export default function Jobs() {
           .map(item => item.replace(/^include[s]?/i, '').trim());
         listItems.push(...items);
       } else {
-        // Flush any accumulated list items
         if (listItems.length > 0) {
           elements.push(
             <ul key={`list-${elements.length}`}>
@@ -146,14 +144,12 @@ export default function Jobs() {
           );
           listItems = [];
         }
-        // Add as paragraph if not just a separator
         if (trimmed && !/^\.\s+$/.test(trimmed)) {
           elements.push(<p key={`p-${elements.length}`}>{trimmed}</p>);
         }
       }
     });
 
-    // Flush remaining list items
     if (listItems.length > 0) {
       elements.push(
         <ul key={`list-${elements.length}`}>
@@ -164,7 +160,46 @@ export default function Jobs() {
       );
     }
 
-    return elements.length > 0 ? elements : <p>{text}</p>; // Fallback to original if no formatting
+    return elements.length > 0 ? elements : <p>{text}</p>;
+  };
+
+  // New function to generate resume
+  const generateResume = async () => {
+    if (!userId || !selectedJob) return;
+
+    setIsGenerating(true);
+    try {
+      const response = await fetch('/api/resumes/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          job_id: selectedJob.id,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate resume');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `tailored_resume_${selectedJob.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error generating resume:', err);
+      alert(err instanceof Error ? err.message : 'An error occurred while generating your resume');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -258,7 +293,6 @@ export default function Jobs() {
                     <span>Locations</span>
                   </div>
                   {jobs.map((job) => {
-                    // Determine the displayed location
                     const selectedLocationMatch = job.locations.find(
                       loc => (loc.location_name || loc.city_name) === locationFilter
                     );
@@ -324,9 +358,19 @@ export default function Jobs() {
                   {formatDescription(selectedJob.description)}
                 </div>
                 <div className="job-details-actions">
-                  <a href={userId ? '/create_resume' : 'signup'} className="button">
-                    Create Resume
-                  </a>
+                  {userId ? (
+                    <button
+                      onClick={generateResume}
+                      disabled={isGenerating}
+                      className="button"
+                    >
+                      {isGenerating ? 'Generating...' : 'Generate Resume'}
+                    </button>
+                  ) : (
+                    <a href="/signup" className="button">
+                      Sign Up to Generate Resume
+                    </a>
+                  )}
                   <a href={selectedJob.url} target="_blank" rel="noopener noreferrer" className="button">
                     View Job on Site
                   </a>
