@@ -27,7 +27,7 @@ export default function NavBar() {
         {userId ? (
           <>
             <Link href="/upload" className="link">
-                Upload Resume
+              Upload Resume
             </Link>
             <Link href="/account" className="link">
               Account
