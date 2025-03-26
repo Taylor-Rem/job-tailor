@@ -15,15 +15,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const client = await pool.connect();
     const query = `
-      SELECT DISTINCT COALESCE(location_name, city_name) AS location
-      FROM jobs_locations
-      WHERE location_name IS NOT NULL OR city_name IS NOT NULL
-      ORDER BY location;
+      SELECT DISTINCT city
+      FROM public.locations
+      WHERE city IS NOT NULL
+      ORDER BY city;
     `;
     const result = await client.query(query);
     client.release();
 
-    const locations = result.rows.map((row) => row.location).filter(Boolean);
+    const locations = result.rows.map((row) => row.city).filter(Boolean);
     res.status(200).json(locations);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';

@@ -8,6 +8,7 @@ export default function Account() {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [resumeUrl, setResumeUrl] = useState<string | null>(null);
+  const [resumeData, setResumeData] = useState<any>(null); // To store parsed resume info
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,8 +33,21 @@ export default function Account() {
             body: JSON.stringify({ user_id: userId }),
           });
           const resumeData = await resumeRes.json();
-          if (resumeRes.ok) setResumeUrl(resumeData.url);
-          else if (resumeRes.status !== 404) throw new Error(resumeData.error);
+          if (resumeRes.ok) {
+            setResumeUrl(resumeData.url);
+
+            // Fetch additional resume data (summary, skills, etc.)
+            const infoRes = await fetch('/api/users/info', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_id: userId }),
+            });
+            const infoData = await infoRes.json();
+            if (infoRes.ok) setResumeData(infoData);
+            else throw new Error(infoData.error);
+          } else if (resumeRes.status !== 404) {
+            throw new Error(resumeData.error);
+          }
         } catch (err) {
           setError(err instanceof Error ? err.message : 'Failed to load account data');
         } finally {
@@ -52,8 +66,10 @@ export default function Account() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId }),
       });
-      if (res.ok) setResumeUrl(null);
-      else throw new Error('Failed to delete resume');
+      if (res.ok) {
+        setResumeUrl(null);
+        setResumeData(null);
+      } else throw new Error('Failed to delete resume');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete resume');
     }
@@ -80,6 +96,30 @@ export default function Account() {
                     View Uploaded Resume
                   </a>
                 </p>
+                {resumeData && (
+                  <>
+                    <p><strong>Summary:</strong> {resumeData.summary || 'N/A'}</p>
+                    <p><strong>Skills:</strong> {resumeData.skills?.join(', ') || 'N/A'}</p>
+                    <p><strong>Experience:</strong></p>
+                    <ul>
+                      {resumeData.experience?.map((exp: any, i: number) => (
+                        <li key={i}>{exp.title} at {exp.company} ({exp.start_date} - {exp.end_date || 'Present'})</li>
+                      )) || 'N/A'}
+                    </ul>
+                    <p><strong>Education:</strong></p>
+                    <ul>
+                      {resumeData.education?.map((edu: any, i: number) => (
+                        <li key={i}>{edu.degree} from {edu.school} ({edu.start_date} - {edu.end_date})</li>
+                      )) || 'N/A'}
+                    </ul>
+                    <p><strong>Projects:</strong></p>
+                    <ul>
+                      {resumeData.projects?.map((proj: any, i: number) => (
+                        <li key={i}>{proj.title} - {proj.description} (Completed: {proj.date_completed || 'N/A'})</li>
+                      )) || 'N/A'}
+                    </ul>
+                  </>
+                )}
                 <button onClick={handleDeleteResume} className="button">
                   Delete Resume
                 </button>

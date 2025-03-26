@@ -3,6 +3,7 @@ import { useState } from 'react';
 export default function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState(''); // New state for username
   const [plan, setPlan] = useState(0);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,7 +17,7 @@ export default function Signup() {
       const response = await fetch('/api/users/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, plan }),
+        body: JSON.stringify({ email, password, username, plan }), // Include username
       });
       const data = await response.json();
       if (response.ok) {
@@ -25,7 +26,7 @@ export default function Signup() {
         setMessage(`Error: ${data.error}`);
       }
     } catch (err) {
-      setMessage(`Network error: ${(err as Error).message}`); // Use err here
+      setMessage(`Network error: ${(err as Error).message}`);
     } finally {
       setLoading(false);
     }
@@ -41,7 +42,16 @@ export default function Signup() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Email"
           className="input"
-          style={{marginBottom: '1em'}}
+          style={{ marginBottom: '1em' }}
+          required
+        />
+        <input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Username"
+          className="input"
+          style={{ marginBottom: '1em' }}
           required
         />
         <input
@@ -50,7 +60,7 @@ export default function Signup() {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
           className="input"
-          style={{marginBottom: '1em'}}
+          style={{ marginBottom: '1em' }}
           required
         />
         <select

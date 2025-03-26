@@ -28,7 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const client = await pool.connect();
     const result = await client.query(
-      'SELECT s3_key FROM user_resumes WHERE user_id = $1 ORDER BY resume_id DESC LIMIT 1',
+      'SELECT s3key FROM users.resume WHERE user_id = $1',
       [user_id]
     );
     client.release();
@@ -37,7 +37,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: 'No resume found' });
     }
 
-    const s3Key = result.rows[0].s3_key;
+    const s3Key = result.rows[0].s3key; // Corrected from s3_key to s3key
+    if (!s3Key) throw new Error('S3 key is missing in database');
+
     const url = await getSignedUrl(
       s3,
       new GetObjectCommand({

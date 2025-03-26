@@ -17,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const client = await pool.connect();
-    const result = await client.query('SELECT email FROM users WHERE user_id = $1', [user_id]);
+    const result = await client.query('SELECT email FROM users.users WHERE user_id = $1', [user_id]);
     client.release();
 
     if (result.rows.length === 0) {

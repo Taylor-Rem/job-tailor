@@ -32,26 +32,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const client = await pool.connect();
     let query = `
-      SELECT j.id, j.title, j.company, j.description, j.url,
+      SELECT j.id, j.title, c.name AS company, j.description, j.url,
              array_agg(
                jsonb_build_object(
-                 'city_name', jl.city_name,
+                 'city', jl.city,
+                 'state', jl.state,
+                 'country', jl.country,
+                 'zip_code', jl.zip_code,
                  'latitude', jl.latitude,
-                 'longitude', jl.longitude,
-                 'country_code', jl.country_code,
-                 'location_name', jl.location_name,
-                 'country_subdivision_code', jl.country_subdivision_code
+                 'longitude', jl.longitude
                )
              ) AS locations,
-             js.min_salary, js.max_salary, js.interval_code,
+             s.min_amount, s.max_amount, s.currency,
              j.remote,
-             array_agg(DISTINCT jt.tag) AS tags
-      FROM jobs j
-      JOIN jobs_salaries js ON j.salary_id = js.id
-      LEFT JOIN jobs_locations_link jll ON j.id = jll.job_id
-      LEFT JOIN jobs_locations jl ON jll.location_id = jl.id
-      LEFT JOIN jobs_job_tags jjt ON j.id = jjt.job_id
-      LEFT JOIN job_tags jt ON jjt.tag_id = jt.id
+             array_agg(DISTINCT t.name) AS tags
+      FROM jobs.jobs j
+      JOIN companies c ON j.company_id = c.id
+      JOIN jobs.salaries s ON j.salary_id = s.id
+      LEFT JOIN jobs.locations_link jl_link ON j.id = jl_link.job_id
+      LEFT JOIN public.locations jl ON jl_link.location_id = jl.id
+      LEFT JOIN jobs.tags_link jt_link ON j.id = jt_link.job_id
+      LEFT JOIN public.tags t ON jt_link.tag_id = t.id
       WHERE j.status = $1
     `;
     const params = ['open'];
@@ -60,9 +61,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (job_type || tag) {
       const filterTag = job_type || tag;
       query += ` AND EXISTS (
-        SELECT 1 FROM jobs_job_tags jjt2
-        JOIN job_tags jt2 ON jjt2.tag_id = jt2.id
-        WHERE jjt2.job_id = j.id AND jt2.tag = $${paramIndex}
+        SELECT 1 FROM jobs.tags_link jt_link2
+        JOIN public.tags t2 ON jt_link2.tag_id = t2.id
+        WHERE jt_link2.job_id = j.id AND t2.name = $${paramIndex}
       )`;
       params.push(filterTag as string);
       paramIndex++;
@@ -73,9 +74,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const radiusMeters = parseFloat(radius as string) * 1609.34;
       query += `
         AND EXISTS (
-          SELECT 1 FROM jobs_locations_link jll2
-          JOIN jobs_locations jl2 ON jll2.location_id = jl2.id
-          WHERE jll2.job_id = j.id
+          SELECT 1 FROM jobs.locations_link jl_link2
+          JOIN jobs.locations jl2 ON jl_link2.location_id = jl2.id
+          WHERE jl_link2.job_id = j.id
+          AND jl2.latitude IS NOT NULL AND jl2.longitude IS NOT NULL
           AND earth_distance(
             ll_to_earth($${paramIndex}, $${paramIndex + 1}),
             ll_to_earth(jl2.latitude, jl2.longitude)
@@ -88,39 +90,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (location) {
       query += ` AND EXISTS (
-        SELECT 1 FROM jobs_locations_link jll3
-        JOIN jobs_locations jl3 ON jll3.location_id = jl3.id
-        WHERE jll3.job_id = j.id
-        AND (jl3.location_name = $${paramIndex} OR jl3.city_name = $${paramIndex})
+        SELECT 1 FROM jobs.locations_link jl_link3
+        JOIN jobs.locations jl3 ON jl_link3.location_id = jl3.id
+        WHERE jl_link3.job_id = j.id
+        AND jl3.city = $${paramIndex}
       )`;
       params.push(location as string);
       paramIndex++;
     }
 
     query += `
-      GROUP BY j.id, j.title, j.company, j.description, j.url,
-               js.min_salary, js.max_salary, js.interval_code, j.remote
+      GROUP BY j.id, j.title, c.name, j.description, j.url,
+               s.min_amount, s.max_amount, s.currency, j.remote
       ORDER BY j.id
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
     params.push(limit.toString(), offset.toString());
 
     // Build the count query with the same filters
-    let countQuery = `SELECT COUNT(DISTINCT j.id) FROM jobs j
-      LEFT JOIN jobs_locations_link jll ON j.id = jll.job_id
-      LEFT JOIN jobs_locations jl ON jll.location_id = jl.id
-      LEFT JOIN jobs_job_tags jjt ON j.id = jjt.job_id
-      LEFT JOIN job_tags jt ON jjt.tag_id = jt.id
-      WHERE j.status = $1`;
+    let countQuery = `
+      SELECT COUNT(DISTINCT j.id)
+      FROM jobs.jobs j
+      LEFT JOIN jobs.locations_link jl_link ON j.id = jl_link.job_id
+      LEFT JOIN public.locations jl ON jl_link.location_id = jl.id
+      LEFT JOIN jobs.tags_link jt_link ON j.id = jt_link.job_id
+      LEFT JOIN public.tags t ON jt_link.tag_id = t.id
+      WHERE j.status = $1
+    `;
     const countParams = ['open'];
     let countParamIndex = 2;
 
     if (job_type || tag) {
       const filterTag = job_type || tag;
       countQuery += ` AND EXISTS (
-        SELECT 1 FROM jobs_job_tags jjt2
-        JOIN job_tags jt2 ON jjt2.tag_id = jt2.id
-        WHERE jjt2.job_id = j.id AND jt2.tag = $${countParamIndex}
+        SELECT 1 FROM jobs.tags_link jt_link2
+        JOIN public.tags t2 ON jt_link2.tag_id = t2.id
+        WHERE jt_link2.job_id = j.id AND t2.name = $${countParamIndex}
       )`;
       countParams.push(filterTag as string);
       countParamIndex++;
@@ -131,9 +136,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const radiusMeters = parseFloat(radius as string) * 1609.34;
       countQuery += `
         AND EXISTS (
-          SELECT 1 FROM jobs_locations_link jll2
-          JOIN jobs_locations jl2 ON jll2.location_id = jl2.id
-          WHERE jll2.job_id = j.id
+          SELECT 1 FROM jobs.locations_link jl_link2
+          JOIN jobs.locations jl2 ON jl_link2.location_id = jl2.id
+          WHERE jl_link2.job_id = j.id
+          AND jl2.latitude IS NOT NULL AND jl2.longitude IS NOT NULL
           AND earth_distance(
             ll_to_earth($${countParamIndex}, $${countParamIndex + 1}),
             ll_to_earth(jl2.latitude, jl2.longitude)
@@ -145,10 +151,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (location) {
       countQuery += ` AND EXISTS (
-        SELECT 1 FROM jobs_locations_link jll3
-        JOIN jobs_locations jl3 ON jll3.location_id = jl3.id
-        WHERE jll3.job_id = j.id
-        AND (jl3.location_name = $${countParamIndex} OR jl3.city_name = $${countParamIndex})
+        SELECT 1 FROM jobs.locations_link jl_link3
+        JOIN jobs.locations jl3 ON jl_link3.location_id = jl3.id
+        WHERE jl_link3.job_id = j.id
+        AND jl3.city = $${countParamIndex}
       )`;
       countParams.push(location as string);
       countParamIndex++;

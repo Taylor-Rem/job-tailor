@@ -3,24 +3,24 @@ import { useAuth } from '../contexts/AuthContext';
 import Select from 'react-select';
 
 interface Location {
-  city_name: string;
-  latitude: number;
-  longitude: number;
-  country_code: string;
-  location_name: string;
-  country_subdivision_code: string | null;
+  city: string;
+  state: string | null;
+  country: string;
+  zip_code: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 interface Job {
   id: number;
   title: string;
-  company: string;
+  company: string; // This will come from jobs.companies via JOIN
   description: string;
   url: string;
   locations: Location[];
-  min_salary: number;
-  max_salary: number;
-  interval_code: string;
+  min_amount: number; // Changed from min_salary
+  max_amount: number; // Changed from max_salary
+  currency: string;   // Changed from interval_code
   tags: string[];
   remote: boolean;
 }
@@ -41,7 +41,7 @@ export default function Jobs() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [collapsedLocations, setCollapsedLocations] = useState(true);
-  const [isGenerating, setIsGenerating] = useState(false); // New state for loading feedback
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const fetchFilterOptions = async () => {
     try {
@@ -90,10 +90,9 @@ export default function Jobs() {
     fetchJobs();
   }, [jobTypeFilter, zipFilter, radiusFilter, locationFilter, tagFilter, page, fetchJobs]);
 
-  const formatSalary = (min: number, max: number, interval: string) => {
+  const formatSalary = (min: number, max: number, currency: string) => {
     if (min === 0 && max === 0) return 'N/A';
-    const intervalText = interval === 'PH' ? 'per hour' : interval === 'PA' ? 'per year' : interval;
-    return `${toMoney(min)}-${toMoney(max)} ${intervalText}`.trim();
+    return `${toMoney(min)}-${toMoney(max)} ${currency}`;
   };
 
   const toMoney = (num: number) => {
@@ -163,7 +162,6 @@ export default function Jobs() {
     return elements.length > 0 ? elements : <p>{text}</p>;
   };
 
-  // New function to generate resume
   const generateResume = async () => {
     if (!userId || !selectedJob) return;
 
@@ -294,11 +292,11 @@ export default function Jobs() {
                   </div>
                   {jobs.map((job) => {
                     const selectedLocationMatch = job.locations.find(
-                      loc => (loc.location_name || loc.city_name) === locationFilter
+                      loc => loc.city === locationFilter
                     );
                     const displayLocation = selectedLocationMatch
-                      ? (selectedLocationMatch.location_name || selectedLocationMatch.city_name)
-                      : (job.locations[0]?.location_name || job.locations[0]?.city_name || 'N/A');
+                      ? selectedLocationMatch.city
+                      : (job.locations[0]?.city || 'N/A');
                     const hasMultiple = job.locations.length > 1;
 
                     return (
@@ -347,12 +345,12 @@ export default function Jobs() {
                     {collapsedLocations ? 'Show' : 'Hide'} ({selectedJob.locations.length})
                   </button>
                   {!collapsedLocations && (
-                    <span> {selectedJob.locations.map(loc => loc.location_name || loc.city_name).join(', ')}</span>
+                    <span> {selectedJob.locations.map(loc => loc.city).join(', ')}</span>
                   )}
                 </p>
                 <p><strong>Tags:</strong> {selectedJob.tags.join(', ')}</p>
                 <p><strong>Remote:</strong> {selectedJob.remote ? 'Yes' : 'No'}</p>
-                <p><strong>Salary:</strong> {formatSalary(selectedJob.min_salary, selectedJob.max_salary, selectedJob.interval_code)}</p>
+                <p><strong>Salary:</strong> {formatSalary(selectedJob.min_amount, selectedJob.max_amount, selectedJob.currency)}</p>
                 <div className="job-description">
                   <strong>Description:</strong>
                   {formatDescription(selectedJob.description)}

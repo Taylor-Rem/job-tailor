@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Pool } from 'pg';
 import pdfParse from 'pdf-parse';
+import { deleteUserInfo } from './delete_user_info';
 
 const s3Client = new S3Client({
   region: process.env.REGION,
@@ -32,83 +33,202 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     if (!process.env.S3_BUCKET) throw new Error('S3_BUCKET environment variable is not set');
 
-    await s3Client.send(new PutObjectCommand({
-      Bucket: process.env.S3_BUCKET,
-      Key: s3Key,
-      Body: pdfBuffer,
-      ContentType: 'application/pdf',
-    }));
-    console.log('Uploaded to S3:', { bucket: process.env.S3_BUCKET, key: s3Key });
-
-    const pdfData = await pdfParse(pdfBuffer);
-    const resumeText = pdfData.text;
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini-2024-07-18',
-        messages: [
-          {
-            role: 'system',
-            content: 'Parse this resume text into a JSON object with: "header" (name, email, phone, address, links as array), "summary" (string), "skills" (array of strings), "experience" (array of {position, company, startDate, endDate, summary}), "education" (array of {institution, area, studyType, startDate, endDate}). Extract accurately, use "" or [] for missing fields. Return only the JSON.',
-          },
-          {
-            role: 'user',
-            content: `Resume text: "${resumeText}"`,
-          },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0,
-        max_tokens: 1000,
-      }),
-    });
-
-    if (!response.ok) throw new Error('OpenAI API failed: ' + await response.text());
-    const data = await response.json();
-    const parsedResume = JSON.parse(data.choices[0].message.content);
-    console.log('Parsed resume:', parsedResume);
-
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      const resumeInsert = await client.query(
-        `INSERT INTO user_resumes (user_id, s3_key, file_name, resume_text, header, summary, experience, education)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING resume_id`,
-        [
-          user_id,
-          s3Key,
-          file_name,
-          resumeText,
-          JSON.stringify(parsedResume.header),
-          parsedResume.summary,
-          JSON.stringify(parsedResume.experience),
-          JSON.stringify(parsedResume.education),
-        ]
-      );
-      const resumeId = resumeInsert.rows[0].resume_id;
+      // Delete existing resume from S3 and DB
+      const resumeResult = await client.query('SELECT s3key FROM users.resume WHERE user_id = $1', [user_id]);
+      const oldS3Key = resumeResult.rows[0]?.s3key;
+      if (oldS3Key) {
+        await s3Client.send(new DeleteObjectCommand({
+          Bucket: process.env.S3_BUCKET,
+          Key: oldS3Key,
+        }));
+        console.log('Deleted old resume from S3:', { key: oldS3Key });
+      }
+      await client.query('DELETE FROM users.resume WHERE user_id = $1', [user_id]);
 
+      // Wipe existing user data
+      await deleteUserInfo(user_id, client);
+
+      // Upload new resume to S3
+      await s3Client.send(new PutObjectCommand({
+        Bucket: process.env.S3_BUCKET,
+        Key: s3Key,
+        Body: pdfBuffer,
+        ContentType: 'application/pdf',
+      }));
+      console.log('Uploaded to S3:', { bucket: process.env.S3_BUCKET, key: s3Key });
+
+      // Parse PDF
+      const pdfData = await pdfParse(pdfBuffer);
+      const resumeText = pdfData.text;
+
+      // Parse with OpenAI, including projects
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini-2024-07-18',
+          messages: [
+            {
+              role: 'system',
+              content: 'Parse this resume text into a JSON object with: "header" (name, email, phone, address, links as array), "summary" (string), "skills" (array of strings), "experience" (array of {position, company, startDate, endDate, summary}), "education" (array of {institution, area, studyType, startDate, endDate}), "projects" (array of {title, description, dateCompleted, links as array}). Convert all dates (startDate, endDate, dateCompleted) to \'YYYY-MM-DD\' format for SQL compatibility. Use null (unquoted) for missing or present (ongoing) dates. Extract accurately, use "" or [] for missing fields. Return only the JSON.',
+            },
+            {
+              role: 'user',
+              content: `Resume text: "${resumeText}"`,
+            },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0,
+          max_tokens: 1500,
+        }),
+      });
+
+      if (!response.ok) throw new Error('OpenAI API failed: ' + await response.text());
+      const data = await response.json();
+      const parsedResume = JSON.parse(data.choices[0].message.content);
+      console.log('Parsed resume:', parsedResume);
+
+      // Insert into users.resume
+      const resumeInsert = await client.query(
+        `INSERT INTO users.resume (user_id, s3key, file_name, resume_text)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id`,
+        [user_id, s3Key, file_name, resumeText]
+      );
+      const resumeId = resumeInsert.rows[0].id;
+
+      // Insert into users.user_info
+      const [city, state] = parsedResume.header.address 
+        ? parsedResume.header.address.split(', ').map((part: string) => part.trim()) 
+        : ['', ''];
+      let locationId = null;
+      if (city) {
+        const locationResult = await client.query(`
+          INSERT INTO public.locations (city, state, country, created_at, updated_at)
+          VALUES ($1, $2, 'US', NOW(), NOW())
+          ON CONFLICT (city, country) DO UPDATE SET
+            state = EXCLUDED.state,
+            updated_at = NOW()
+          RETURNING id
+        `, [city, state]);
+        locationId = locationResult.rows[0].id;
+      }
+
+      await client.query(`
+        INSERT INTO users.user_info (user_id, links, contact_email, phone_number, location_id)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (user_id) DO UPDATE SET
+          links = EXCLUDED.links,
+          contact_email = EXCLUDED.contact_email,
+          phone_number = EXCLUDED.phone_number,
+          location_id = EXCLUDED.location_id,
+          updated_at = NOW()
+      `, [
+        user_id,
+        JSON.stringify(parsedResume.header.links.length ? parsedResume.header.links.reduce((acc: any, link: string) => ({ ...acc, [link.split('/')[2]]: link }), {}) : {}),
+        parsedResume.header.email || '',
+        parsedResume.header.phone || '',
+        locationId
+      ]);
+
+      // Insert into users.summary
+      if (parsedResume.summary) {
+        await client.query(`
+          INSERT INTO users.summary (user_id, summary)
+          VALUES ($1, $2)
+        `, [user_id, parsedResume.summary]);
+      }
+
+      // Insert into users.projects
+      for (const project of parsedResume.projects) {
+        await client.query(`
+          INSERT INTO users.projects (user_id, title, description, date_completed, links)
+          VALUES ($1, $2, $3, $4, $5)
+        `, [
+          user_id,
+          project.title || '',
+          project.description || '',
+          project.dateCompleted || null,
+          JSON.stringify(project.links.length ? project.links.reduce((acc: any, link: string) => ({ ...acc, [link.split('/')[2]]: link }), {}) : {})
+        ]);
+      }
+
+      // Insert into users.experience
+      for (const exp of parsedResume.experience) {
+        let companyId = null;
+        if (exp.company) {
+          const companyResult = await client.query(`
+            INSERT INTO public.companies (name, created_at, updated_at)
+            VALUES ($1, NOW(), NOW())
+            ON CONFLICT (name) DO UPDATE SET updated_at = NOW()
+            RETURNING id
+          `, [exp.company]);
+          companyId = companyResult.rows[0].id;
+        }
+
+        await client.query(`
+          INSERT INTO users.experience (user_id, company_id, title, description, start_date, end_date)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `, [
+          user_id,
+          companyId,
+          exp.position || '',
+          exp.summary || '',
+          exp.startDate || null,
+          exp.endDate === '' ? null : exp.endDate || null
+        ]);
+      }
+
+      // Insert into public.schools and users.education
+      for (const edu of parsedResume.education) {
+        let schoolId = null;
+        if (edu.institution) {
+          const schoolResult = await client.query(`
+            INSERT INTO public.schools (name, created_at, updated_at)
+            VALUES ($1, NOW(), NOW())
+            ON CONFLICT (name) DO UPDATE SET updated_at = NOW()
+            RETURNING id
+          `, [edu.institution]);
+          schoolId = schoolResult.rows[0].id;
+        }
+
+        if (schoolId) {
+          await client.query(`
+            INSERT INTO users.education (user_id, school_id, start_date, end_date, degree)
+            VALUES ($1, $2, $3, $4, $5)
+          `, [
+            user_id,
+            schoolId,
+            edu.startDate || null,
+            edu.endDate === '' ? null : edu.endDate || null,
+            `${edu.studyType || ''} ${edu.area || ''}`.trim() || null
+          ]);
+        }
+      }
+
+      // Insert into users.skills and users.skills_link
       if (parsedResume.skills.length > 0) {
         for (const skill of parsedResume.skills) {
-          const skillInsert = await client.query(
-            `INSERT INTO skills (skill_name, created_at)
-             VALUES ($1, NOW())
-             ON CONFLICT (skill_name) DO UPDATE SET created_at = EXCLUDED.created_at
-             RETURNING skill_id`,
-            [skill]
-          );
-          const skillId = skillInsert.rows[0].skill_id;
+          const skillInsert = await client.query(`
+            INSERT INTO users.skills (text, created_at)
+            VALUES ($1, NOW())
+            ON CONFLICT (text) DO UPDATE SET created_at = EXCLUDED.created_at
+            RETURNING id
+          `, [skill]);
+          const skillId = skillInsert.rows[0].id;
 
-          await client.query(
-            `INSERT INTO resume_skills (resume_id, skill_id)
-             VALUES ($1, $2)
-             ON CONFLICT DO NOTHING`,
-            [resumeId, skillId]
-          );
+          await client.query(`
+            INSERT INTO users.skills_link (user_id, skill_id)
+            VALUES ($1, $2)
+            ON CONFLICT DO NOTHING
+          `, [user_id, skillId]);
         }
       }
 

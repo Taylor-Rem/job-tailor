@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState(''); // Renamed from email to identifier
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,7 +19,7 @@ export default function Login() {
       const response = await fetch('/api/users/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ identifier, password }), // Use identifier
       });
       const data = await response.json();
       if (response.ok) {
@@ -30,7 +30,7 @@ export default function Login() {
         setMessage(`Error: ${data.error}`);
       }
     } catch (err) {
-      setMessage(`Network error: ${(err as Error).message}`); // Use err here
+      setMessage(`Network error: ${(err as Error).message}`);
     } finally {
       setLoading(false);
     }
@@ -41,12 +41,12 @@ export default function Login() {
       <form onSubmit={handleLogin} className="card form">
         <h1 className="title">Log In</h1>
         <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
+          type="text" // Changed from email to text
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
+          placeholder="Email or Username"
           className="input"
-          style={{marginBottom: '1em'}}
+          style={{ marginBottom: '1em' }}
           required
         />
         <input
@@ -55,7 +55,7 @@ export default function Login() {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
           className="input"
-          style={{marginBottom: '1em'}}
+          style={{ marginBottom: '1em' }}
           required
         />
         <button type="submit" disabled={loading} className="button">

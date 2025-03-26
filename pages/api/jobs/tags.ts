@@ -15,14 +15,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const client = await pool.connect();
     const query = `
-      SELECT DISTINCT tag
-      FROM job_tags
-      ORDER BY tag;
+      SELECT DISTINCT name
+      FROM public.tags
+      ORDER BY name;
     `;
     const result = await client.query(query);
     client.release();
 
-    const tags = result.rows.map((row) => row.tag).filter(Boolean);
+    const tags = result.rows.map((row) => row.name).filter(Boolean);
     res.status(200).json(tags);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';

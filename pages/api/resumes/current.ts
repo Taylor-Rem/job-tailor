@@ -27,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const client = await pool.connect();
-    const result = await client.query('SELECT resume_id, s3_key FROM user_resumes WHERE user_id = $1', [user_id]);
+    const result = await client.query('SELECT id, s3key FROM users.resume WHERE user_id = $1', [user_id]);
     client.release();
     if (result.rows.length > 0) {
       const { resume_id, s3_key } = result.rows[0];

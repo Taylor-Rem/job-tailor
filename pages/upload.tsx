@@ -1,4 +1,3 @@
-// pages/upload.tsx
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
@@ -49,7 +48,7 @@ export default function Upload() {
         });
         const data = await response.json();
         if (response.ok) {
-          setMessage(`Resume uploaded! Resume ID: ${data.resume_id}, File: ${file.name}`);
+          setMessage(`Resume uploaded successfully! Resume ID: ${data.resume_id}`);
         } else {
           setMessage(`Error: ${data.error}`);
         }

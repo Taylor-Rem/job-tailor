@@ -26,12 +26,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const client = await pool.connect();
-    // Get the s3_key before deleting
-    const result = await client.query('SELECT s3_key FROM user_resumes WHERE user_id = $1', [user_id]);
-    const s3Key = result.rows[0]?.s3_key;
+    const result = await client.query('SELECT s3key FROM users.resume WHERE user_id = $1', [user_id]);
+    const s3Key = result.rows[0]?.s3key;
 
     if (s3Key) {
-      // Delete from S3
       await s3.send(
         new DeleteObjectCommand({
           Bucket: process.env.S3_BUCKET,
@@ -40,8 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       );
     }
 
-    // Delete from DB
-    await client.query('DELETE FROM user_resumes WHERE user_id = $1', [user_id]);
+    await client.query('DELETE FROM users.resume WHERE user_id = $1', [user_id]);
     client.release();
 
     res.status(200).json({ message: 'Resume deleted' });
