@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const client = await pool.connect();
     const query = `
-      SELECT DISTINCT city
+      SELECT DISTINCT CONCAT(city, ' ', state) as city
       FROM public.locations
       WHERE city IS NOT NULL
       ORDER BY city;

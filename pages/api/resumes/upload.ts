@@ -20,6 +20,16 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
+// Helper function to check if a string is a valid URL
+function isValidUrl(string: string): boolean {
+  try {
+    new URL(string);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -36,6 +46,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      // Fetch user's email from users.users as a fallback
+      const userResult = await client.query('SELECT email FROM users.users WHERE user_id = $1', [user_id]);
+      const userEmail = userResult.rows[0]?.email || '';
+      console.log('User email from users.users:', userEmail);
 
       // Delete existing resume from S3 and DB
       const resumeResult = await client.query('SELECT s3key FROM users.resume WHERE user_id = $1', [user_id]);
@@ -65,7 +80,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const pdfData = await pdfParse(pdfBuffer);
       const resumeText = pdfData.text;
 
-      // Parse with OpenAI, including projects
+      // Parse with OpenAI
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -77,7 +92,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           messages: [
             {
               role: 'system',
-              content: 'Parse this resume text into a JSON object with: "header" (name, email, phone, address, links as array), "summary" (string), "skills" (array of strings), "experience" (array of {position, company, startDate, endDate, summary}), "education" (array of {institution, area, studyType, startDate, endDate}), "projects" (array of {title, description, dateCompleted, links as array}). Convert all dates (startDate, endDate, dateCompleted) to \'YYYY-MM-DD\' format for SQL compatibility. Use null (unquoted) for missing or present (ongoing) dates. Extract accurately, use "" or [] for missing fields. Return only the JSON.',
+              content: 'Parse this resume text into a JSON object with: "header" (fname, lname, email, phone, address, links as array), "summary" (string), "skills" (array of strings), "experience" (array of {position, company, startDate, endDate, summary}), "education" (array of {institution, area, studyType, startDate, endDate}), "projects" (array of {title, description, dateCompleted, links as array}). Convert all dates (startDate, endDate, dateCompleted) to \'YYYY-MM-DD\' format for SQL compatibility. Use null (unquoted) for missing or present (ongoing) dates. Extract accurately, use "" or [] for missing fields. For "links" fields, only include valid URLs starting with "http://" or "https://". Return only the JSON.',
             },
             {
               role: 'user',
@@ -121,22 +136,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         locationId = locationResult.rows[0].id;
       }
 
+      const resumeEmail = parsedResume.header.email || '';
+      const emailToUse = resumeEmail || userEmail;
+      console.log('Email to use:', emailToUse);
+
       await client.query(`
-        INSERT INTO users.user_info (user_id, links, contact_email, phone_number, location_id)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO users.user_info (user_id, fname, lname, contact_email, phone_number, location_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (user_id) DO UPDATE SET
-          links = EXCLUDED.links,
+          fname = EXCLUDED.fname,
+          lname = EXCLUDED.lname,
           contact_email = EXCLUDED.contact_email,
           phone_number = EXCLUDED.phone_number,
           location_id = EXCLUDED.location_id,
           updated_at = NOW()
       `, [
         user_id,
-        JSON.stringify(parsedResume.header.links.length ? parsedResume.header.links.reduce((acc: any, link: string) => ({ ...acc, [link.split('/')[2]]: link }), {}) : {}),
-        parsedResume.header.email || '',
+        parsedResume.header.fname || '',
+        parsedResume.header.lname || '',
+        emailToUse,
         parsedResume.header.phone || '',
         locationId
       ]);
+
+      // Insert into users.profiles
+      if (parsedResume.header.links && parsedResume.header.links.length > 0) {
+        for (const link of parsedResume.header.links) {
+          if (!isValidUrl(link)) {
+            console.warn(`Skipping invalid profile link: ${link}`);
+            continue;
+          }
+          const url = link;
+          const network = new URL(url).hostname;
+          const username = url.split('/').filter(Boolean).pop() || 'N/A';
+          await client.query(`
+            INSERT INTO users.profiles (user_id, network, username, url)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (user_id, network) DO UPDATE SET
+              username = EXCLUDED.username,
+              url = EXCLUDED.url,
+              updated_at = NOW()
+          `, [user_id, network, username, url]);
+        }
+      }
 
       // Insert into users.summary
       if (parsedResume.summary) {
@@ -148,6 +190,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // Insert into users.projects
       for (const project of parsedResume.projects) {
+        const validLinks = (project.links || []).filter(link => isValidUrl(link));
+        if (project.links && project.links.length > validLinks.length) {
+          console.warn(`Invalid project links skipped for project "${project.title}": ${project.links.filter(link => !isValidUrl(link)).join(', ')}`);
+        }
         await client.query(`
           INSERT INTO users.projects (user_id, title, description, date_completed, links)
           VALUES ($1, $2, $3, $4, $5)
@@ -155,8 +201,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           user_id,
           project.title || '',
           project.description || '',
-          project.dateCompleted || null,
-          JSON.stringify(project.links.length ? project.links.reduce((acc: any, link: string) => ({ ...acc, [link.split('/')[2]]: link }), {}) : {})
+          project.dateCompleted,
+          JSON.stringify(validLinks.length ? validLinks.reduce((acc: any, link: string) => ({ ...acc, [new URL(link).hostname]: link }), {}) : {})
         ]);
       }
 
@@ -181,8 +227,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           companyId,
           exp.position || '',
           exp.summary || '',
-          exp.startDate || null,
-          exp.endDate === '' ? null : exp.endDate || null
+          exp.startDate,
+          exp.endDate === '' ? null : exp.endDate
         ]);
       }
 
@@ -206,8 +252,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           `, [
             user_id,
             schoolId,
-            edu.startDate || null,
-            edu.endDate === '' ? null : edu.endDate || null,
+            edu.startDate,
+            edu.endDate === '' ? null : edu.endDate,
             `${edu.studyType || ''} ${edu.area || ''}`.trim() || null
           ]);
         }

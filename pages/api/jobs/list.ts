@@ -47,7 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
              j.remote,
              array_agg(DISTINCT t.name) AS tags
       FROM jobs.jobs j
-      JOIN companies c ON j.company_id = c.id
+      JOIN public.companies c ON j.company_id = c.id
       JOIN jobs.salaries s ON j.salary_id = s.id
       LEFT JOIN jobs.locations_link jl_link ON j.id = jl_link.job_id
       LEFT JOIN public.locations jl ON jl_link.location_id = jl.id
@@ -75,7 +75,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       query += `
         AND EXISTS (
           SELECT 1 FROM jobs.locations_link jl_link2
-          JOIN jobs.locations jl2 ON jl_link2.location_id = jl2.id
+          JOIN public.locations jl2 ON jl_link2.location_id = jl2.id
           WHERE jl_link2.job_id = j.id
           AND jl2.latitude IS NOT NULL AND jl2.longitude IS NOT NULL
           AND earth_distance(
@@ -89,14 +89,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (location) {
+      const [city, state] = [(location as string).split(' ').slice(0, -1).join(' '), (location as string).split(' ').pop()];
       query += ` AND EXISTS (
         SELECT 1 FROM jobs.locations_link jl_link3
-        JOIN jobs.locations jl3 ON jl_link3.location_id = jl3.id
+        JOIN public.locations jl3 ON jl_link3.location_id = jl3.id
         WHERE jl_link3.job_id = j.id
-        AND jl3.city = $${paramIndex}
+        AND (jl3.city = $${paramIndex} OR jl3.state = $${paramIndex + 1})
       )`;
-      params.push(location as string);
-      paramIndex++;
+      params.push(city, state || 'null');
+      paramIndex += 2;
     }
 
     query += `
@@ -107,7 +108,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     `;
     params.push(limit.toString(), offset.toString());
 
-    // Build the count query with the same filters
     let countQuery = `
       SELECT COUNT(DISTINCT j.id)
       FROM jobs.jobs j
@@ -137,7 +137,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       countQuery += `
         AND EXISTS (
           SELECT 1 FROM jobs.locations_link jl_link2
-          JOIN jobs.locations jl2 ON jl_link2.location_id = jl2.id
+          JOIN public.locations jl2 ON jl_link2.location_id = jl2.id
           WHERE jl_link2.job_id = j.id
           AND jl2.latitude IS NOT NULL AND jl2.longitude IS NOT NULL
           AND earth_distance(
@@ -150,15 +150,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (location) {
+      const [city, state] = [(location as string).split(' ').slice(0, -1).join(' '), (location as string).split(' ').pop()];
       countQuery += ` AND EXISTS (
         SELECT 1 FROM jobs.locations_link jl_link3
-        JOIN jobs.locations jl3 ON jl_link3.location_id = jl3.id
+        JOIN public.locations jl3 ON jl_link3.location_id = jl3.id
         WHERE jl_link3.job_id = j.id
-        AND jl3.city = $${countParamIndex}
+        AND (jl3.city = $${countParamIndex} OR jl3.state = $${countParamIndex + 1})
       )`;
-      countParams.push(location as string);
-      countParamIndex++;
+      countParams.push(city, state || 'null');
+      countParamIndex += 2;
     }
+
 
     const result = await client.query(query, params);
     const totalResult = await client.query(countQuery, countParams);
