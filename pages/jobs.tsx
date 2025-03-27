@@ -292,11 +292,11 @@ export default function Jobs() {
                   </div>
                   {jobs.map((job) => {
                     const selectedLocationMatch = job.locations.find(
-                      loc => loc.city === locationFilter
+                      loc => `${loc.city} ${loc.state}` === locationFilter || loc.city === locationFilter || loc.state === locationFilter
                     );
                     const displayLocation = selectedLocationMatch
-                      ? selectedLocationMatch.city
-                      : (job.locations[0]?.city || 'N/A');
+                      ? (selectedLocationMatch.city || selectedLocationMatch.state)
+                      : (`${job.locations[0]?.city || ''}, ${job.locations[0]?.state || ''}` || 'N/A');
                     const hasMultiple = job.locations.length > 1;
 
                     return (
@@ -345,7 +345,7 @@ export default function Jobs() {
                     {collapsedLocations ? 'Show' : 'Hide'} ({selectedJob.locations.length})
                   </button>
                   {!collapsedLocations && (
-                    <span> {selectedJob.locations.map(loc => loc.city).join(', ')}</span>
+                    <span> {selectedJob.locations.map(loc => `${loc.city}, ${loc.state}`).join(' | ')}</span>
                   )}
                 </p>
                 <p><strong>Tags:</strong> {selectedJob.tags.join(', ')}</p>

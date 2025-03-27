@@ -8,9 +8,18 @@ export default function Account() {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [resumeUrl, setResumeUrl] = useState<string | null>(null);
-  const [resumeData, setResumeData] = useState<any>(null); // To store parsed resume info
+  const [resumeData, setResumeData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    fname: '',
+    lname: '',
+    email: '',
+    phone: '',
+    city: '',
+    state: '',
+  });
 
   useEffect(() => {
     if (!userId) {
@@ -36,15 +45,23 @@ export default function Account() {
           if (resumeRes.ok) {
             setResumeUrl(resumeData.url);
 
-            // Fetch additional resume data (summary, skills, etc.)
             const infoRes = await fetch('/api/users/info', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ user_id: userId }),
             });
             const infoData = await infoRes.json();
-            if (infoRes.ok) setResumeData(infoData);
-            else throw new Error(infoData.error);
+            if (infoRes.ok) {
+              setResumeData(infoData);
+              setFormData({
+                fname: infoData.fname || '',
+                lname: infoData.lname || '',
+                email: infoData.email || '',
+                phone: infoData.phone || '',
+                city: infoData.city || '',
+                state: infoData.state || '',
+              });
+            } else throw new Error(infoData.error);
           } else if (resumeRes.status !== 404) {
             throw new Error(resumeData.error);
           }
@@ -75,6 +92,35 @@ export default function Account() {
     }
   };
 
+  const handleEditToggle = () => {
+    setIsEditing(!isEditing);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSave = async () => {
+    try {
+      const res = await fetch('/api/users/info', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, ...formData }),
+      });
+      if (res.ok) {
+        const updatedData = await res.json();
+        setResumeData(prev => ({ ...prev, ...updatedData }));
+        setIsEditing(false);
+      } else {
+        const errorData = await res.json();
+        throw new Error(errorData.error);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save changes');
+    }
+  };
+
   if (!userId) return null;
 
   return (
@@ -89,6 +135,70 @@ export default function Account() {
           <>
             <p className="message">User ID: {userId}</p>
             <p className="message">Email: {email}</p>
+            {isEditing ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <input
+                  type="text"
+                  name="fname"
+                  value={formData.fname}
+                  onChange={handleInputChange}
+                  placeholder="First Name"
+                  className="input"
+                />
+                <input
+                  type="text"
+                  name="lname"
+                  value={formData.lname}
+                  onChange={handleInputChange}
+                  placeholder="Last Name"
+                  className="input"
+                />
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  placeholder="Email"
+                  className="input"
+                />
+                <input
+                  type="text"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  placeholder="Phone"
+                  className="input"
+                />
+                <input
+                  type="text"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleInputChange}
+                  placeholder="City"
+                  className="input"
+                />
+                <input
+                  type="text"
+                  name="state"
+                  value={formData.state}
+                  onChange={handleInputChange}
+                  placeholder="State"
+                  className="input"
+                />
+                <div>
+                  <button onClick={handleSave} className="button">Save</button>
+                  <button onClick={handleEditToggle} className="button" style={{ marginLeft: '10px' }}>Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p><strong>Name:</strong> {resumeData?.fname} {resumeData?.lname}</p>
+                <p><strong>Email:</strong> {resumeData?.email}</p>
+                <p><strong>Phone:</strong> {resumeData?.phone}</p>
+                <p><strong>Location:</strong> {resumeData?.city}, {resumeData?.state}</p>
+                <button onClick={handleEditToggle} className="button">Edit Profile</button>
+              </>
+            )}
             {resumeUrl ? (
               <>
                 <p className="message">
@@ -96,7 +206,7 @@ export default function Account() {
                     View Uploaded Resume
                   </a>
                 </p>
-                {resumeData && (
+                {resumeData && !isEditing && (
                   <>
                     <p><strong>Summary:</strong> {resumeData.summary || 'N/A'}</p>
                     <p><strong>Skills:</strong> {resumeData.skills?.join(', ') || 'N/A'}</p>
