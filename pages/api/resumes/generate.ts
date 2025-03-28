@@ -1,28 +1,38 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { Pool } from 'pg';
 import puppeteer from 'puppeteer';
-import elegantTheme from 'jsonresume-theme-elegant';
+import actualTheme from 'jsonresume-theme-actual';
 import { tailorResume } from './tailorResume';
 
 interface ResumeData {
   basics: {
     name: string;
+    label?: string;
+    image?: string;
     email: string;
     phone: string;
-    url: string;
-    profiles?: { network: string; username: string; url: string }[];
-    location?: {
-      address: string;
-      postalCode: string;
-      city: string;
-      countryCode: string;
-      region: string;
+    url?: string;
+    summary?: string;
+    location: {
+      address?: string;
+      postalCode?: string;
+      city?: string;
+      countryCode?: string;
+      region?: string;
     };
+    profiles?: { network: string; username: string; url: string }[];
   };
-  summary: string;
-  skills: { name: string }[];
-  work: { position: string; company: string; startDate: string; endDate: string; summary: string }[];
-  education: { institution: string; area: string; studyType: string; startDate: string; endDate: string }[];
+  work: { name: string; position: string; url?: string; startDate: string; endDate: string; summary: string; highlights?: string[] }[];
+  education: { institution: string; area?: string; studyType: string; startDate: string; endDate: string; score?: string; courses?: string[] }[];
+  skills: { name: string; level?: string; keywords?: string[] }[];
+  projects: { name: string; startDate?: string; endDate?: string; description: string; highlights?: string[]; url?: string }[];
+  volunteer?: { organization: string; position: string; url?: string; startDate: string; endDate: string; summary: string; highlights?: string[] }[];
+  awards?: { title: string; date: string; awarder: string; summary: string }[];
+  certificates?: { name: string; date: string; issuer: string; url?: string }[];
+  publications?: { name: string; publisher: string; releaseDate: string; url?: string; summary: string }[];
+  languages?: { language: string; fluency: string }[];
+  interests?: { name: string; keywords: string[] }[];
+  references?: { name: string; reference: string }[];
 }
 
 const pool = new Pool({
@@ -42,6 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const client = await pool.connect();
 
+    // Fetch user info
     const userInfoResult = await client.query(
       'SELECT fname, lname, contact_email AS email, phone_number AS phone, l.city, l.state FROM users.user_info ui LEFT JOIN public.locations l ON ui.location_id = l.id WHERE ui.user_id = $1',
       [user_id]
@@ -49,96 +60,122 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!userInfoResult.rows.length) throw new Error('User info not found');
     const userInfo = userInfoResult.rows[0];
 
-    // Fetch profiles from users.profiles
+    // Fetch profiles
     const profilesResult = await client.query(
       'SELECT network, username, url FROM users.profiles WHERE user_id = $1',
       [user_id]
     );
     const profiles = profilesResult.rows;
 
+    // Fetch summary
     const summaryResult = await client.query(
       'SELECT summary FROM users.summary WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
       [user_id]
     );
     const summary = summaryResult.rows[0]?.summary || '';
 
+    // Fetch skills
     const skillsResult = await client.query(
-      `SELECT s.text AS skill_name FROM users.skills s JOIN users.skills_link sl ON s.id = sl.skill_id WHERE sl.user_id = $1`,
+      'SELECT s.text AS name FROM users.skills s JOIN users.skills_link sl ON s.id = sl.skill_id WHERE sl.user_id = $1',
       [user_id]
     );
-    const skills = skillsResult.rows.map(row => row.skill_name);
+    const skills = skillsResult.rows.map(row => ({ name: row.name }));
 
+    // Fetch work experience
     const experienceResult = await client.query(
       `SELECT e.title AS position, c.name AS company, e.description AS summary, e.start_date AS "startDate", e.end_date AS "endDate"
-       FROM users.experience e LEFT JOIN public.companies c ON e.company_id = c.id WHERE e.user_id = $1`,
+        FROM users.experience e LEFT JOIN public.companies c ON e.company_id = c.id WHERE e.user_id = $1`,
       [user_id]
     );
-    const experience = experienceResult.rows.map(row => ({
+    const work = experienceResult.rows.map(row => ({
+      name: row.company || 'Unknown Company',
       position: row.position || 'Unknown Position',
-      company: row.company || 'Unknown Company',
       summary: row.summary || '',
       startDate: row.startDate ? row.startDate.toISOString().split('T')[0] : 'N/A',
-      endDate: row.endDate ? row.endDate.toISOString().split('T')[0] : 'Present',
+      endDate: row.endDate ? row.endDate.toISOString().split('T')[0] : null, // Use null instead of 'Present'
     }));
 
+    // Fetch education
     const educationResult = await client.query(
-      `SELECT s.name AS institution, e.degree AS studyType, e.start_date AS "startDate", e.end_date AS "endDate"
+      `SELECT s.name AS institution, e.url, e.area, e.study_type AS "studyType", e.start_date AS "startDate", e.end_date AS "endDate"
        FROM users.education e JOIN public.schools s ON e.school_id = s.id WHERE e.user_id = $1`,
       [user_id]
     );
     const education = educationResult.rows.map(row => ({
       institution: row.institution || 'Unknown Institution',
-      area: '',
+      url: row.url || undefined,
+      area: row.area || undefined,
       studyType: row.studyType || 'N/A',
-      startDate: row.startDate ? row.startDate.toISOString().split('T')[0] : 'N/A',
-      endDate: row.endDate ? row.endDate.toISOString().split('T')[0] : 'N/A',
+      startDate: row.startDate ? row.startDate.toISOString().split('T')[0] : undefined,
+      endDate: row.endDate ? row.endDate.toISOString().split('T')[0] : null,
     }));
 
+    // In generate.ts, update the projects query
+    const projectsResult = await client.query(
+      `SELECT title AS name, description, date_completed, links, roles
+      FROM users.projects WHERE user_id = $1`,
+      [user_id]
+    );
+    const projects = projectsResult.rows.map(row => ({
+      name: row.name || 'Unnamed Project',
+      description: row.description || '',
+      endDate: row.date_completed ? row.date_completed.toISOString().split('T')[0] : undefined,
+      url: row.links && row.links.url ? row.links.url : undefined,
+      roles: row.roles || ['Contributor'], // Ensure roles is always an array
+    }));
+
+    // Fetch job description for tailoring
     const jobResult = await client.query('SELECT description FROM jobs.jobs WHERE id = $1', [job_id]);
     if (!jobResult.rows.length) throw new Error('Job not found');
     const jobDescription = jobResult.rows[0].description;
 
     client.release();
 
-    const tailoredData = await tailorResume(summary, skills, jobDescription);
-    console.log('Tailored data:', tailoredData);
+    // Tailor summary and skills
+    const tailoredData = await tailorResume(summary, skills.map(s => s.name), jobDescription);
 
     const resumeData: ResumeData = {
       basics: {
         name: `${userInfo.fname || ''} ${userInfo.lname || ''}`.trim() || 'Applicant',
         email: userInfo.email || 'N/A',
         phone: userInfo.phone || 'N/A',
-        url: profiles.length > 0 ? profiles[0].url : 'N/A',
-        profiles: profiles.length > 0 ? profiles : undefined,
+        url: profiles.length > 0 ? profiles[0].url : undefined,
         location: {
-          address: `${userInfo.city || 'Unknown City'}, ${userInfo.state || 'N/A'}`.trim(),
-          postalCode: '',
           city: userInfo.city || 'Unknown City',
-          countryCode: 'US',
           region: userInfo.state || 'N/A',
+          countryCode: 'US',
         },
+        profiles: profiles.length > 0 ? profiles : undefined,
       },
-      summary: tailoredData.summary || '',
-      skills: tailoredData.skills || [],
-      work: experience.length > 0 ? experience : [{ position: 'N/A', company: 'N/A', startDate: 'N/A', endDate: 'N/A', summary: '' }],
-      education: education.length > 0 ? education : [{ institution: 'N/A', area: '', studyType: 'N/A', startDate: 'N/A', endDate: 'N/A' }],
+      work: work.length > 0 ? work : [],
+      education: education.length > 0 ? education : [],
+      skills: tailoredData.skills || skills,
+      projects: projects.length > 0 ? projects : [],
+      // Add placeholders for optional sections if you extend your DB later
+      volunteer: [],
+      awards: [],
+      certificates: [],
+      publications: [],
+      languages: [],
+      interests: [],
+      references: [],
     };
-    console.log('Resume data for rendering:', JSON.stringify(resumeData, null, 2));
+    resumeData.basics.summary = tailoredData.summary || summary;
+    // console.log(resumeData)
 
-    let html;
-    try {
-      html = elegantTheme.render(resumeData);
-      console.log('Generated HTML:', html.slice(0, 500) + '...');
-    } catch (renderErr) {
-      console.error('Rendering error details:', renderErr);
-      throw new Error('Failed to render resume HTML: ' + (renderErr instanceof Error ? renderErr.message : 'Unknown error'));
-    }
+    const html = actualTheme.render(resumeData);
+    console.log('Generated HTML:', html.slice(0, 500) + '...'); // Log first 500 chars for brevity
 
     const browser = await puppeteer.launch({ headless: true });
     const page = await browser.newPage();
     await page.setContent(html);
     const pdfBuffer = await page.pdf({ format: 'Letter', printBackground: true });
     await browser.close();
+
+    // Write to file for debugging
+    const fs = require('fs').promises;
+    await fs.writeFile('debug_resume.pdf', pdfBuffer);
+    console.log('PDF buffer length:', pdfBuffer.length); // Log buffer size
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${user_id}_${job_id}.pdf"`);

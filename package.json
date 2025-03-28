@@ -13,7 +13,7 @@
     "@aws-sdk/s3-request-presigner": "^3.758.0",
     "@types/pdfkit": "^0.13.9",
     "bcrypt": "^5.1.1",
-    "jsonresume-theme-elegant": "^1.16.1",
+    "jsonresume-theme-actual": "^0.2.2",
     "next": "^15.2.3",
     "node-fetch": "^3.3.2",
     "pdf-parse": "^1.1.1",

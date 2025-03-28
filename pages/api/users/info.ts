@@ -18,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const client = await pool.connect();
 
     if (req.method === 'POST') {
-      // Fetch user info
+      // Fetch user info (unchanged)
       const userInfoRes = await client.query(
         'SELECT fname, lname, contact_email AS email, phone_number AS phone, l.city, l.state FROM users.user_info ui LEFT JOIN public.locations l ON ui.location_id = l.id WHERE ui.user_id = $1',
         [user_id]
@@ -35,11 +35,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         LEFT JOIN public.companies c ON e.company_id = c.id 
         WHERE e.user_id = $1`, [user_id]);
       const educationRes = await client.query(`
-        SELECT e.degree, e.start_date, e.end_date, s.name AS school 
+        SELECT s.name AS school, e.url, e.area, e.study_type, e.start_date, e.end_date 
         FROM users.education e 
         JOIN public.schools s ON e.school_id = s.id 
         WHERE e.user_id = $1`, [user_id]);
-      const projectsRes = await client.query('SELECT title, description, date_completed, links FROM users.projects WHERE user_id = $1', [user_id]);
+      const projectsRes = await client.query('SELECT title, description, date_completed, links, roles FROM users.projects WHERE user_id = $1', [user_id]);
 
       client.release();
 
@@ -55,16 +55,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         skills: skillsRes.rows.map(row => row.text),
         experience: experienceRes.rows,
         education: educationRes.rows,
-        projects: projectsRes.rows.map(row => ({
-          title: row.title,
-          description: row.description,
-          date_completed: row.date_completed,
-          links: row.links
-        })),
+        projects: projectsRes.rows,
       });
     } else if (req.method === 'PUT') {
-      // Update user info
-      const { fname, lname, email, phone, city, state } = req.body;
+      await client.query('BEGIN');
+
+      const { fname, lname, email, phone, city, state, summary, skills, experience, education, projects } = req.body;
+
+      // Update user_info
       let locationId = null;
       if (city) {
         const locationResult = await client.query(`
@@ -91,6 +89,74 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         RETURNING fname, lname, contact_email AS email, phone_number AS phone, location_id
       `, [user_id, fname || '', lname || '', email || '', phone || '', locationId]);
 
+      // Update summary
+      if (summary) {
+        await client.query('DELETE FROM users.summary WHERE user_id = $1', [user_id]);
+        await client.query('INSERT INTO users.summary (user_id, summary) VALUES ($1, $2)', [user_id, summary]);
+      }
+
+      // Update skills
+      await client.query('DELETE FROM users.skills_link WHERE user_id = $1', [user_id]);
+      for (const skill of skills || []) {
+        const skillResult = await client.query(`
+          INSERT INTO users.skills (text, created_at) 
+          VALUES ($1, NOW()) 
+          ON CONFLICT (text) DO UPDATE SET created_at = EXCLUDED.created_at 
+          RETURNING id
+        `, [skill]);
+        await client.query('INSERT INTO users.skills_link (user_id, skill_id) VALUES ($1, $2)', [user_id, skillResult.rows[0].id]);
+      }
+
+      // Update experience
+      await client.query('DELETE FROM users.experience WHERE user_id = $1', [user_id]);
+      for (const exp of experience || []) {
+        let companyId = null;
+        if (exp.company) {
+          const companyResult = await client.query(`
+            INSERT INTO public.companies (name, created_at, updated_at)
+            VALUES ($1, NOW(), NOW())
+            ON CONFLICT (name) DO UPDATE SET updated_at = NOW()
+            RETURNING id
+          `, [exp.company]);
+          companyId = companyResult.rows[0].id;
+        }
+        await client.query(`
+          INSERT INTO users.experience (user_id, company_id, title, description, start_date, end_date)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `, [user_id, companyId, exp.title, exp.description, exp.start_date, exp.end_date || null]);
+      }
+
+      // Update education
+      await client.query('DELETE FROM users.education WHERE user_id = $1', [user_id]);
+      for (const edu of education || []) {
+        const schoolResult = await client.query(`
+          INSERT INTO public.schools (name, created_at, updated_at)
+          VALUES ($1, NOW(), NOW())
+          ON CONFLICT (name) DO UPDATE SET updated_at = NOW()
+          RETURNING id
+        `, [edu.school]);
+        await client.query(`
+          INSERT INTO users.education (user_id, school_id, url, area, study_type, start_date, end_date)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `, [user_id, schoolResult.rows[0].id, edu.url || null, edu.area || null, edu.study_type || null, edu.start_date, edu.end_date || null]);
+      }
+
+      // Update projects
+      await client.query('DELETE FROM users.projects WHERE user_id = $1', [user_id]);
+      for (const proj of projects || []) {
+        const links = proj.links ? proj.links.split(',').reduce((acc: any, link: string) => {
+          const trimmed = link.trim();
+          return trimmed ? { ...acc, [new URL(trimmed).hostname]: trimmed } : acc;
+        }, {}) : {};
+        const roles = proj.roles ? proj.roles.split(',').map((role: string) => role.trim()) : ['Contributor'];
+        await client.query(`
+          INSERT INTO users.projects (user_id, title, description, date_completed, links, roles)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `, [user_id, proj.title, proj.description, proj.date_completed || null, JSON.stringify(links), roles]);
+      }
+
+      await client.query('COMMIT');
+
       const updatedLocation = locationId ? await client.query(
         'SELECT city, state FROM public.locations WHERE id = $1',
         [locationId]
@@ -111,6 +177,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.status(405).json({ error: 'Method not allowed' });
     }
   } catch (err) {
+    await client.query('ROLLBACK');
     const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
     res.status(500).json({ error: errorMessage });
   }

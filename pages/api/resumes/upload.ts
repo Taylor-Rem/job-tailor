@@ -92,7 +92,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           messages: [
             {
               role: 'system',
-              content: 'Parse this resume text into a JSON object with: "header" (fname, lname, email, phone, address, links as array), "summary" (string), "skills" (array of strings), "experience" (array of {position, company, startDate, endDate, summary}), "education" (array of {institution, area, studyType, startDate, endDate}), "projects" (array of {title, description, dateCompleted, links as array}). Convert all dates (startDate, endDate, dateCompleted) to \'YYYY-MM-DD\' format for SQL compatibility. Use null (unquoted) for missing or present (ongoing) dates. Extract accurately, use "" or [] for missing fields. For "links" fields, only include valid URLs starting with "http://" or "https://". Return only the JSON.',
+              content: 'Parse this resume text into a JSON object with: "header" (fname, lname, email, phone, address, links as array), "summary" (string), "skills" (array of strings), "experience" (array of {position, company, startDate, endDate, summary}), "education" (array of {institution, url, area, studyType, startDate, endDate}), "projects" (array of {title, description, dateCompleted, links as array, roles as array of strings}). Convert all dates (startDate, endDate, dateCompleted) to \'YYYY-MM-DD\' format for SQL compatibility. Use null (unquoted) for missing or present (ongoing) dates. Extract accurately, use "" or [] for missing fields. For "links" fields, only include valid URLs starting with "http://" or "https://". If "roles" cannot be determined for a project, use ["Contributor"] as a default. Return only the JSON.',
             },
             {
               role: 'user',
@@ -190,19 +190,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // Insert into users.projects
       for (const project of parsedResume.projects) {
-        const validLinks = (project.links || []).filter(link => isValidUrl(link));
+        const validLinks = (project.links || []).filter((link: string) => isValidUrl(link));
         if (project.links && project.links.length > validLinks.length) {
-          console.warn(`Invalid project links skipped for project "${project.title}": ${project.links.filter(link => !isValidUrl(link)).join(', ')}`);
+          console.warn(`Invalid project links skipped for project "${project.title}": ${project.links.filter((link: string) => !isValidUrl(link)).join(', ')}`);
         }
         await client.query(`
-          INSERT INTO users.projects (user_id, title, description, date_completed, links)
-          VALUES ($1, $2, $3, $4, $5)
+          INSERT INTO users.projects (user_id, title, description, date_completed, links, roles)
+          VALUES ($1, $2, $3, $4, $5, $6)
         `, [
           user_id,
           project.title || '',
           project.description || '',
           project.dateCompleted,
-          JSON.stringify(validLinks.length ? validLinks.reduce((acc: any, link: string) => ({ ...acc, [new URL(link).hostname]: link }), {}) : {})
+          JSON.stringify(validLinks.length ? validLinks.reduce((acc: any, link: string) => ({ ...acc, [new URL(link).hostname]: link }), {}) : {}),
+          project.roles || ['Contributor'] // Use parsed roles or default to ['Contributor']
         ]);
       }
 
@@ -232,7 +233,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ]);
       }
 
-      // Insert into public.schools and users.education
       for (const edu of parsedResume.education) {
         let schoolId = null;
         if (edu.institution) {
@@ -244,17 +244,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           `, [edu.institution]);
           schoolId = schoolResult.rows[0].id;
         }
-
+      
         if (schoolId) {
           await client.query(`
-            INSERT INTO users.education (user_id, school_id, start_date, end_date, degree)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO users.education (user_id, school_id, url, area, study_type, start_date, end_date)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
           `, [
             user_id,
             schoolId,
-            edu.startDate,
-            edu.endDate === '' ? null : edu.endDate,
-            `${edu.studyType || ''} ${edu.area || ''}`.trim() || null
+            edu.url || null,
+            edu.area || null,
+            edu.studyType || null,
+            edu.startDate || null,
+            edu.endDate === '' ? null : edu.endDate || null
           ]);
         }
       }

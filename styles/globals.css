@@ -409,3 +409,31 @@ tr:hover {
   justify-content: space-around;
   gap: 1em;
 }
+/* Collapsible Sections */
+.collapsible-section {
+  border-bottom: 1px solid #444444;
+}
+
+.collapsible-header {
+  font-size: 20px;
+  margin: 0;
+  padding: 10px;
+  background-color: #2d2d2d;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background-color 0.2s;
+}
+
+.collapsible-header:hover {
+  background-color: #4682b4;
+}
+
+.collapsible-content {
+  padding: 10px;
+  background-color: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

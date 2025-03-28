@@ -1,4 +1,3 @@
-// components/NavBar.tsx
 import Link from 'next/link';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
@@ -22,12 +21,15 @@ export default function NavBar() {
           Home
         </Link>
         <Link href="/jobs" className="link">
-                View Jobs
-            </Link>
+          View Jobs
+        </Link>
         {userId ? (
           <>
             <Link href="/upload" className="link">
               Upload Resume
+            </Link>
+            <Link href="/myinfo" className="link">
+              My Info
             </Link>
             <Link href="/account" className="link">
               Account
