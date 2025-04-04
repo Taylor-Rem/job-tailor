@@ -1,0 +1,323 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["jobs", "public", "resume"]
+}
+
+// --- Jobs Schema ---
+model departments {
+  id         Int       @id @default(autoincrement())
+  name       String    @unique(map: "unique_department_name") @db.VarChar(100)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  jobs       jobs[]
+
+  @@schema("jobs")
+}
+
+model jobs {
+  id             Int              @id @default(autoincrement())
+  title          String           @db.VarChar(255)
+  description    String
+  url            String?          @unique(map: "unique_job_url") @db.VarChar(100)
+  remote         Boolean?         @default(false)
+  company_id     Int
+  salary_id      Int?
+  department_id  Int?
+  status         String           @db.VarChar(20)
+  api_created_at DateTime?        @db.Timestamp(6)
+  created_at     DateTime?        @default(now()) @db.Timestamp(6)
+  updated_at     DateTime?        @default(now()) @db.Timestamp(6)
+  companies      companies        @relation(fields: [company_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  departments    departments?     @relation(fields: [department_id], references: [id], onUpdate: NoAction)
+  salaries       salaries?        @relation(fields: [salary_id], references: [id], onUpdate: NoAction)
+  locations_link locations_link[]
+  tags_link      tags_link[]
+
+  @@index([company_id], map: "idx_jobs_company_id")
+  @@index([status], map: "idx_jobs_status")
+  @@schema("jobs")
+}
+
+model locations_link {
+  job_id      Int
+  location_id Int
+  jobs        jobs      @relation(fields: [job_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  locations   locations @relation(fields: [location_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([job_id, location_id])
+  @@index([job_id], map: "idx_locations_link_job_id")
+  @@schema("jobs")
+}
+
+model salaries {
+  id         Int       @id @default(autoincrement())
+  min_amount Decimal?  @db.Decimal(15, 2)
+  max_amount Decimal?  @db.Decimal(15, 2)
+  currency   String?   @default("USD") @db.VarChar(3)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  jobs       jobs[]
+
+  @@unique([min_amount, max_amount], map: "unique_salary_range")
+  @@schema("jobs")
+}
+
+model tags_link {
+  job_id Int
+  tag_id Int
+  jobs   jobs @relation(fields: [job_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tags   tags @relation(fields: [tag_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([job_id, tag_id])
+  @@index([job_id], map: "idx_tags_link_job_id")
+  @@schema("jobs")
+}
+
+// --- Public Schema ---
+model companies {
+  id         Int          @id @default(autoincrement())
+  name       String       @unique(map: "unique_company_name") @db.VarChar(100)
+  created_at DateTime?    @default(now()) @db.Timestamp(6)
+  updated_at DateTime?    @default(now()) @db.Timestamp(6)
+  jobs       jobs[]
+  experience experience[]
+
+  @@schema("public")
+}
+
+model locations {
+  id             Int              @id @default(autoincrement())
+  city           String?          @db.VarChar(100)
+  state          String?          @db.VarChar(100)
+  country        String?          @db.VarChar(100)
+  zip_code       String?          @db.VarChar(20)
+  latitude       Decimal?         @db.Decimal(9, 6)
+  longitude      Decimal?         @db.Decimal(9, 6)
+  created_at     DateTime?        @default(now()) @db.Timestamp(6)
+  updated_at     DateTime?        @default(now()) @db.Timestamp(6)
+  locations_link locations_link[]
+  schools        schools[]
+  user_info      user_info[]
+
+  @@unique([city, country], map: "unique_city_country")
+  @@schema("public")
+}
+
+model schools {
+  id          Int         @id @default(autoincrement())
+  name        String      @unique(map: "unique_school_name") @db.VarChar(255)
+  location_id Int?
+  created_at  DateTime?   @default(now()) @db.Timestamp(6)
+  updated_at  DateTime?   @default(now()) @db.Timestamp(6)
+  locations   locations?  @relation(fields: [location_id], references: [id], onUpdate: NoAction)
+  education   education[]
+
+  @@index([location_id], map: "idx_schools_location_id")
+  @@schema("public")
+}
+
+model tags {
+  id         Int         @id @default(autoincrement())
+  name       String      @unique(map: "unique_tag_name") @db.VarChar(255)
+  created_at DateTime?   @default(now()) @db.Timestamp(6)
+  updated_at DateTime?   @default(now()) @db.Timestamp(6)
+  tags_link  tags_link[]
+
+  @@schema("public")
+}
+
+model skills {
+  id          Int           @id @default(autoincrement())
+  text        String        @unique(map: "unique_skill_text") @db.VarChar(50)
+  created_at  DateTime?     @default(now()) @db.Timestamp(6)
+  updated_at  DateTime?     @default(now()) @db.Timestamp(6)
+  skills_link skills_link[]
+
+  @@schema("public")
+}
+
+model users {
+  id          Int       @id @default(autoincrement())
+  email       String    @unique @db.VarChar(255)
+  username    String    @unique @db.VarChar(50)
+  password    String    @db.VarChar(255)
+  plan        Int       @default(0)
+  is_temporary Boolean   @default(false)
+  expires_at  DateTime? @db.Timestamp(6)
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  updated_at  DateTime? @default(now()) @db.Timestamp(6)
+  resumes     resume[]
+
+  @@schema("public")
+}
+
+// --- Resume Schema ---
+model resume {
+  id            Int           @id @default(autoincrement())
+  user_id       Int
+  s3key         String?       @db.VarChar(255)
+  file_name     String        @db.VarChar(255)
+  resume_text   String?
+  created_at    DateTime?     @default(now()) @db.Timestamp(6)
+  updated_at    DateTime?     @default(now()) @db.Timestamp(6)
+  users         users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  awards        awards[]
+  certificates  certificates[]
+  education     education[]
+  experience    experience[]
+  profiles      profiles[]
+  projects      projects[]
+  skills_link   skills_link[]
+  summary       summary[]
+  user_info     user_info?
+
+  @@index([user_id], map: "idx_resume_user_id")
+  @@schema("resume")
+}
+
+model awards {
+  id         Int       @id @default(autoincrement())
+  resume_id  Int
+  title      String    @db.VarChar(255)
+  date       DateTime? @db.Date
+  awarder    String?   @db.VarChar(255)
+  summary    String?
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  resume     resume    @relation(fields: [resume_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([resume_id], map: "idx_awards_resume_id")
+  @@schema("resume")
+}
+
+model certificates {
+  id         Int       @id @default(autoincrement())
+  resume_id  Int
+  name       String    @db.VarChar(255)
+  date       DateTime? @db.Date
+  issuer     String?   @db.VarChar(255)
+  url        String?   @db.VarChar(255)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  resume     resume    @relation(fields: [resume_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([resume_id], map: "idx_certificates_resume_id")
+  @@schema("resume")
+}
+
+model education {
+  id         Int       @id @default(autoincrement())
+  resume_id  Int
+  school_id  Int
+  url        String?   @db.VarChar(255)
+  area       String?   @db.VarChar(255)
+  study_type String?   @db.VarChar(255)
+  start_date DateTime? @db.Date
+  end_date   DateTime? @db.Date
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  resume     resume    @relation(fields: [resume_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  schools    schools   @relation(fields: [school_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([resume_id], map: "idx_education_resume_id")
+  @@index([school_id], map: "idx_education_school_id")
+  @@schema("resume")
+}
+
+model experience {
+  id          Int        @id @default(autoincrement())
+  resume_id   Int
+  company_id  Int?
+  title       String     @db.VarChar(100)
+  description String?
+  start_date  DateTime?  @db.Date
+  end_date    DateTime?  @db.Date
+  created_at  DateTime?  @default(now()) @db.Timestamp(6)
+  updated_at  DateTime?  @default(now()) @db.Timestamp(6)
+  resume      resume     @relation(fields: [resume_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  companies   companies? @relation(fields: [company_id], references: [id], onUpdate: NoAction)
+
+  @@index([resume_id], map: "idx_experience_resume_id")
+  @@index([company_id], map: "idx_experience_company_id")
+  @@schema("resume")
+}
+
+model profiles {
+  id         Int       @id @default(autoincrement())
+  resume_id  Int
+  network    String    @db.VarChar(100)
+  username   String    @db.VarChar(100)
+  url        String    @db.VarChar(255)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  resume     resume    @relation(fields: [resume_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([resume_id, network], map: "unique_resume_network")
+  @@index([resume_id], map: "idx_profiles_resume_id")
+  @@schema("resume")
+}
+
+model projects {
+  id             Int       @id @default(autoincrement())
+  resume_id      Int
+  title          String    @db.VarChar(255)
+  description    String?
+  date_completed DateTime? @db.Date
+  links          Json?
+  created_at     DateTime? @default(now()) @db.Timestamp(6)
+  updated_at     DateTime? @default(now()) @db.Timestamp(6)
+  roles          String[]  @default(["Contributor"])
+  order          Int?      @default(0)
+  resume         resume    @relation(fields: [resume_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([resume_id], map: "idx_projects_resume_id")
+  @@schema("resume")
+}
+
+model skills_link {
+  resume_id    Int
+  skill_id     Int
+  is_important Boolean? @default(false)
+  resume       resume   @relation(fields: [resume_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  skills       skills   @relation(fields: [skill_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([resume_id, skill_id])
+  @@unique([resume_id, skill_id], map: "unique_resume_skill")
+  @@index([resume_id], map: "idx_skills_link_resume_id")
+  @@schema("resume")
+}
+
+model summary {
+  id         Int       @id @default(autoincrement())
+  resume_id  Int
+  summary    String
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  resume     resume    @relation(fields: [resume_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([resume_id], map: "idx_summary_resume_id")
+  @@schema("resume")
+}
+
+model user_info {
+  resume_id     Int        @id
+  fname         String?    @db.VarChar(255)
+  lname         String?    @db.VarChar(255)
+  links         Json?
+  contact_email String?    @db.VarChar(255)
+  phone_number  String?    @db.VarChar(20)
+  location_id   Int?
+  created_at    DateTime?  @default(now()) @db.Timestamp(6)
+  updated_at    DateTime?  @default(now()) @db.Timestamp(6)
+  resume        resume     @relation(fields: [resume_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  locations     locations? @relation(fields: [location_id], references: [id], onUpdate: NoAction)
+
+  @@index([location_id], map: "idx_user_info_location_id")
+  @@schema("resume")
+}
