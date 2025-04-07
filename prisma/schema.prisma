@@ -6,7 +6,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["jobs", "public", "resume"]
+  schemas  = ["jobs", "public", "resume", "users"]
 }
 
 // --- Jobs Schema ---
@@ -22,14 +22,16 @@ model departments {
 
 model jobs {
   id             Int              @id @default(autoincrement())
+  external_id    String?          @db.VarChar(100)
   title          String           @db.VarChar(255)
-  description    String
+  description    String?
   url            String?          @unique(map: "unique_job_url") @db.VarChar(100)
   remote         Boolean?         @default(false)
   company_id     Int
   salary_id      Int?
   department_id  Int?
   status         String           @db.VarChar(20)
+  source         String?          @db.VarChar(50)
   api_created_at DateTime?        @db.Timestamp(6)
   created_at     DateTime?        @default(now()) @db.Timestamp(6)
   updated_at     DateTime?        @default(now()) @db.Timestamp(6)
@@ -38,6 +40,9 @@ model jobs {
   salaries       salaries?        @relation(fields: [salary_id], references: [id], onUpdate: NoAction)
   locations_link locations_link[]
   tags_link      tags_link[]
+  user_jobs_link user_jobs_link[]
+  job_resume_link job_resume_link[]
+  user_actions   user_actions[]   @relation("JobActions")
 
   @@index([company_id], map: "idx_jobs_company_id")
   @@index([status], map: "idx_jobs_status")
@@ -142,42 +147,116 @@ model skills {
   @@schema("public")
 }
 
+// --- Users Schema ---
 model users {
+  id           Int            @id @default(autoincrement())
+  email        String         @unique @db.VarChar(255)
+  username     String         @unique @db.VarChar(50)
+  password     String         @db.VarChar(255)
+  plan         Int            @default(0) // 0 = free, 1 = premium, etc.
+  is_temporary Boolean        @default(false)
+  expires_at   DateTime?      @db.Timestamp(6)
+  created_at   DateTime?      @default(now()) @db.Timestamp(6)
+  updated_at   DateTime?      @default(now()) @db.Timestamp(6)
+  actions_count user_actions_count?
+
+  @@schema("users")
+}
+
+model tasks {
   id          Int       @id @default(autoincrement())
-  email       String    @unique @db.VarChar(255)
-  username    String    @unique @db.VarChar(50)
-  password    String    @db.VarChar(255)
-  plan        Int       @default(0)
-  is_temporary Boolean   @default(false)
-  expires_at  DateTime? @db.Timestamp(6)
+  user_id     Int
+  task_type   String    @db.VarChar(50)
+  status      String    @db.VarChar(20)
+  progress    String?   @db.VarChar(100)
+  result      Json?
   created_at  DateTime? @default(now()) @db.Timestamp(6)
   updated_at  DateTime? @default(now()) @db.Timestamp(6)
-  resumes     resume[]
 
-  @@schema("public")
+  @@index([user_id], map: "idx_tasks_user_id")
+  @@index([status], map: "idx_tasks_status")
+  @@schema("users")
+}
+
+model user_actions {
+  id          Int       @id @default(autoincrement())
+  user_id     Int
+  action_type String    @db.VarChar(50)
+  job_id      Int?
+  resume_id   Int?
+  details     Json?
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  jobs        jobs?     @relation("JobActions", fields: [job_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  resume      resume?   @relation(fields: [resume_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([user_id], map: "idx_user_actions_user_id")
+  @@index([action_type], map: "idx_user_actions_action_type")
+  @@schema("users")
+}
+
+model user_jobs_link {
+  user_id     Int
+  job_id      Int
+  match_score Float?    @default(0.0)
+  viewed      Boolean   @default(false)
+  applied     Boolean   @default(false)
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  updated_at  DateTime? @default(now()) @db.Timestamp(6)
+  jobs        jobs      @relation(fields: [job_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, job_id])
+  @@index([user_id], map: "idx_user_jobs_link_user_id")
+  @@schema("users")
+}
+
+model user_actions_count {
+  user_id           Int       @id // One-to-one with users
+  resume_uploads    Int       @default(0)
+  resume_generations Int      @default(0)
+  jobs_fetched      Int       @default(0)
+  created_at        DateTime? @default(now()) @db.Timestamp(6)
+  updated_at        DateTime? @default(now()) @db.Timestamp(6)
+  users             users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@schema("users")
 }
 
 // --- Resume Schema ---
 model resume {
-  id            Int           @id @default(autoincrement())
-  user_id       Int
-  s3key         String?       @db.VarChar(255)
-  file_name     String        @db.VarChar(255)
-  resume_text   String?
-  created_at    DateTime?     @default(now()) @db.Timestamp(6)
-  updated_at    DateTime?     @default(now()) @db.Timestamp(6)
-  users         users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  awards        awards[]
-  certificates  certificates[]
-  education     education[]
-  experience    experience[]
-  profiles      profiles[]
-  projects      projects[]
-  skills_link   skills_link[]
-  summary       summary[]
-  user_info     user_info?
+  id             Int            @id @default(autoincrement())
+  user_id        Int
+  s3key          String?        @db.VarChar(255)
+  file_name      String         @db.VarChar(255)
+  resume_text    String?
+  is_original    Boolean        @default(true)
+  created_at     DateTime?      @default(now()) @db.Timestamp(6)
+  updated_at     DateTime?      @default(now()) @db.Timestamp(6)
+  awards         awards[]
+  certificates   certificates[]
+  education      education[]
+  experience     experience[]
+  profiles       profiles[]
+  projects       projects[]
+  skills_link    skills_link[]
+  summary        summary[]
+  user_info      user_info?
+  user_actions   user_actions[]
+  job_resume_link job_resume_link[]
 
   @@index([user_id], map: "idx_resume_user_id")
+  @@schema("resume")
+}
+
+model job_resume_link {
+  job_id     Int
+  resume_id  Int
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  jobs       jobs      @relation(fields: [job_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  resume     resume    @relation(fields: [resume_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([job_id, resume_id])
+  @@index([job_id], map: "idx_job_resume_link_job_id")
   @@schema("resume")
 }
 

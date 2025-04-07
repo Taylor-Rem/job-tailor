@@ -1,17 +1,17 @@
-// pages/index.tsx
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
 
 export default function Home() {
-  const { user, setUser } = useAuth(); // setUser is now available
+  const { user, setUser } = useAuth();
   const router = useRouter();
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [jobListing, setJobListing] = useState<string>('');
+  const [uploadMessage, setUploadMessage] = useState<string>(''); // Added for feedback
 
   const handleUpload = async () => {
     if (!resumeFile) {
-      console.log('Please select a resume file');
+      setUploadMessage('Please select a resume file');
       return;
     }
 
@@ -30,16 +30,16 @@ export default function Home() {
         });
         const data = await response.json();
         if (response.ok) {
-          console.log('Upload successful:', data);
+          setUploadMessage('Resume upload started—processing in background');
           if (data.temp_user_id) {
             setUser({ id: data.temp_user_id, username: 'Guest' });
           }
-          router.push('/'); // Or to an edit page later
+          // router.push('/'); // Uncomment later, keep here for now to see message
         } else {
           throw new Error(data.error || 'Upload failed');
         }
       } catch (error) {
-        console.error('Upload error:', error);
+        setUploadMessage(`Upload error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     };
     reader.readAsDataURL(resumeFile);
@@ -63,6 +63,7 @@ export default function Home() {
         }}
       />
       <button onClick={handleUpload}>Upload</button>
+      {uploadMessage && <p>{uploadMessage}</p>}
       <textarea
         value={jobListing}
         onChange={(e) => setJobListing(e.target.value)}

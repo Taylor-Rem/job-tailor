@@ -3,14 +3,16 @@ import { createContext, useContext, useState, ReactNode } from 'react';
 type User = {
   id: number;
   username: string;
+  email?: string;
+  plan?: number;
 } | null;
 
 type AuthContextType = {
   user: User;
-  signup: (email: string, username: string, password: string) => Promise<void>;
-  login: (identifier: string, password: string) => Promise<void>;
+  signup: (email: string, username: string, password: string) => Promise<{ success: boolean; user?: User; error?: string }>;
+  login: (identifier: string, password: string) => Promise<{ success: boolean; user?: User; error?: string }>;
   logout: () => void;
-  setUser: (user: User) => void; // Add setUser to the interface
+  setUser: (user: User) => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,13 +35,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       body: JSON.stringify({ email, username, password }),
     });
     const data = await response.json();
+
     if (response.ok) {
-      setUser({
+      const userData: User = {
         id: data.user.id,
         username: data.user.username,
-      });
+        email: data.user.email,
+        plan: data.user.plan,
+      };
+      setUser(userData);
+      return { success: true, user: userData };
     } else {
-      throw new Error(data.message || 'Signup failed');
+      return { success: false, error: data.error || 'Signup failed' };
     }
   };
 
@@ -50,13 +57,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       body: JSON.stringify({ identifier, password }),
     });
     const data = await response.json();
+
     if (response.ok) {
-      setUser({
+      const userData: User = {
         id: data.user.id,
         username: data.user.username,
-      });
+        email: data.user.email,
+        plan: data.user.plan,
+      };
+      setUser(userData);
+      return { success: true, user: userData };
     } else {
-      throw new Error(data.message || 'Login failed');
+      return { success: false, error: data.error || 'Login failed' };
     }
   };
 

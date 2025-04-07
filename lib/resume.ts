@@ -1,63 +1,45 @@
-// lib/resume.ts
 import { prisma } from './db';
 import { deleteFromS3 } from './s3';
 import pdfParse from 'pdf-parse';
 
-export async function deleteUserResumeData(user_id: number) {
-  const resumes = await prisma.resume.findMany({
-    where: { user_id },
-    select: { id: true, s3key: true },
-  });
-
-  for (const resume of resumes) {
-    if (resume.s3key) {
-      await deleteFromS3(resume.s3key);
-    }
-  }
-
-  await prisma.resume.deleteMany({
-    where: { user_id },
-  });
-}
-
-export async function parseResume(resumeBuffer: Buffer) {
-  const pdfData = await pdfParse(resumeBuffer);
-  const resumeText = pdfData.text;
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini-2024-07-18',
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Parse this resume text into a JSON object with: "header" (fname, lname, email, phone, address, links as array), "summary" (string), "skills" (array of strings), "experience" (array of {position, company, startDate, endDate, summary}), "education" (array of {institution, url, area, studyType, startDate, endDate}), "projects" (array of {title, description, dateCompleted, links as array, roles as array of strings}). Convert all dates (startDate, endDate, dateCompleted) to \'YYYY-MM-DD\' format for SQL compatibility. Use null (unquoted) for missing or present (ongoing) dates. Extract accurately, use "" or [] for missing fields. For "links" fields, only include valid URLs starting with "http://" or "https://". If "roles" cannot be determined for a project, use ["Contributor"] as a default. Return only the JSON.',
-        },
-        { role: 'user', content: `Resume text: "${resumeText}"` },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0,
-      max_tokens: 1500,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenAI API failed: ${errorText}`);
-  }
-  const data = await response.json();
-  const parsedResume = JSON.parse(data.choices[0].message.content);
-  return { resumeText, parsedResume };
-}
-
 function toDate(dateStr: string | null | undefined): Date | null {
   if (!dateStr) return null;
   return new Date(`${dateStr}T00:00:00.000Z`);
+}
+
+export async function extractResumeText(pdfBuffer: Buffer): Promise<string> {
+  try {
+    const pdfData = await pdfParse(pdfBuffer);
+    return pdfData.text.replace(/\0/g, '');
+  } catch (error) {
+    console.error('PDF parsing error:', error);
+    throw new Error('Failed to extract resume text');
+  }
+}
+
+export async function deleteUserResumeData(user_id: number) {
+  // Find all resumes for the user
+  const resumes = await prisma.resume.findMany({
+    where: { user_id },
+    select: { id: true, s3key: true }, // Only need ID and S3 key
+  });
+
+  // Delete from S3
+  for (const resume of resumes) {
+    if (resume.s3key) {
+      try {
+        await deleteFromS3(resume.s3key);
+      } catch (error) {
+        console.error(`Failed to delete S3 object ${resume.s3key}:`, error);
+        // Continue even if S3 delete fails (orphaned objects can be cleaned later)
+      }
+    }
+  }
+
+  // Delete from DB (cascades to related tables)
+  await prisma.resume.deleteMany({
+    where: { user_id },
+  });
 }
 
 export async function saveResume({

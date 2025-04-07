@@ -1,8 +1,8 @@
-// pages/api/upload-resume.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createTemporaryUser } from '../../lib/user';
-import { deleteUserResumeData, parseResume, saveResume } from '../../lib/resume';
 import { uploadToS3 } from '../../lib/s3';
+import { parseResume } from '../../lib/lambda';
+import { extractResumeText, deleteUserResumeData } from '../../lib/resume';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -20,20 +20,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       user_id = tempUserResult.user.id;
     }
 
+    // Delete existing resume data before uploading new one
     await deleteUserResumeData(user_id);
-    const { resumeText, parsedResume } = await parseResume(pdfBuffer);
+
     const s3Key = await uploadToS3(user_id, file_name, pdfBuffer);
-    const resumeId = await saveResume({
-      user_id,
-      s3Key,
-      file_name,
-      resumeText, // Use parsed text instead of raw buffer
-      parsedResume,
-    });
+    const resumeText = await extractResumeText(pdfBuffer);
+
+    const lambdaResult = await parseResume(user_id, s3Key, file_name, resumeText, process.env.BASE_URL!);
+    if (!lambdaResult.success) throw new Error(lambdaResult.error);
 
     res.status(200).json({
-      message: 'Resume uploaded and processed',
-      resume_id: resumeId,
+      message: 'Resume uploaded, parsing in progress',
       temp_user_id: providedUserId ? null : user_id,
     });
   } catch (err) {

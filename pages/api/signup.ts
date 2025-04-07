@@ -14,7 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const result = await signup(email, username, password);
 
-  if (result.success) {
+  if (result.success && result.user) {
     return res.status(201).json({ message: 'User created', user: result.user });
   } else {
     return res.status(500).json({ message: 'Signup failed', error: result.error });

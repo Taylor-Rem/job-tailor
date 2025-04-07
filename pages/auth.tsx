@@ -17,28 +17,38 @@ export default function Auth() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      await signupFn(signupEmail, signupUsername, signupPassword);
-      setSignupMessage(`User ${signupUsername} created successfully!`);
+    if (!signupEmail || !signupUsername || signupPassword.length < 8) {
+      setSignupMessage('Please provide a valid email, username, and password (8+ chars)');
+      return;
+    }
+
+    const result = await signupFn(signupEmail, signupUsername, signupPassword);
+    if (result.success && result.user) {
+      setSignupMessage(`User ${result.user.username} created successfully!`);
       setSignupEmail('');
       setSignupUsername('');
       setSignupPassword('');
       router.push('/');
-    } catch (error) {
-      setSignupMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } else {
+      setSignupMessage(`Error: ${result.error}`);
     }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      await loginFn(loginIdentifier, loginPassword);
+    if (!loginIdentifier || !loginPassword) {
+      setLoginMessage('Please provide an email/username and password');
+      return;
+    }
+
+    const result = await loginFn(loginIdentifier, loginPassword);
+    if (result.success && result.user) {
       setLoginMessage('Login successful!');
       setLoginIdentifier('');
       setLoginPassword('');
       router.push('/');
-    } catch (error) {
-      setLoginMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } else {
+      setLoginMessage(`Error: ${result.error}`);
     }
   };
 

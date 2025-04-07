@@ -14,7 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const result = await login(identifier, password);
 
-  if (result.success) {
+  if (result.success && result.user) {
     return res.status(200).json({ message: 'Login successful', user: result.user });
   } else {
     return res.status(401).json({ message: 'Login failed', error: result.error });
